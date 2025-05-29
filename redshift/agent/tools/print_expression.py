@@ -1,0 +1,60 @@
+# Standard library
+import sys
+import traceback
+
+# Third party
+from saplings.abstract import Tool
+
+# Local
+try:
+    from redshift.shared.serializers import serialize_val
+except ImportError:
+    from shared.serializers import serialize_val
+
+
+#########
+# HELPERS
+#########
+
+
+def error_message() -> str:
+    exc = sys.exception()
+    message = traceback.format_exception_only(exc)[-1].strip()
+    message = f"***\n{message}"
+    return message
+
+
+######
+# MAIN
+######
+
+
+class PrintExpressionTool(Tool):
+    def __init__(self, pdb):
+        # Base attributes
+        self.name = "print"
+        self.description = "Prints the value of a variable or expression. Equivalent to the pdb 'p' command."
+        self.parameters = {
+            "type": "object",
+            "properties": {
+                "expression": {
+                    "type": "string",
+                    "description": "Variable or expression to print. E.g. 'variable_name' or 'self.attribute'.",
+                }
+            },
+            "required": ["expression"],
+            "additionalProperties": False,
+        }
+        self.is_terminal = False
+
+        # Additional attributes
+        self.pdb = pdb
+
+    async def run(self, expression: str, **kwargs):
+        try:
+            value = eval(
+                expression, self.pdb.curframe.f_globals, self.pdb.curframe_locals
+            )
+            return serialize_val(value)
+        except:
+            return error_message()

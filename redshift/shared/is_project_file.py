@@ -55,7 +55,7 @@ def is_third_party_file(filename: str) -> bool:
 ######
 
 
-def is_user_file(filename: str) -> bool:
+def is_project_file(filename: str) -> bool:
     # Resolve symlink
     real_filename = os.path.realpath(filename)
 

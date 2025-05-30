@@ -13,7 +13,7 @@ except ImportError:
 ######
 
 
-class PrintReturnValueTool(Tool):
+class PrintRetvalTool(Tool):
     def __init__(self, pdb):
         # Base attributes
         self.name = "retval"

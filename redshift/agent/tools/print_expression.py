@@ -50,7 +50,7 @@ class PrintExpressionTool(Tool):
         # Additional attributes
         self.pdb = pdb
 
-    async def run(self, expression: str, **kwargs):
+    async def run(self, expression: str, **kwargs) -> str:
         try:
             value = eval(
                 expression, self.pdb.curframe.f_globals, self.pdb.curframe_locals
@@ -58,3 +58,7 @@ class PrintExpressionTool(Tool):
             return serialize_val(value)
         except:
             return error_message()
+
+
+# TODO: This is unsafe because it's executing code in the program context.
+# We should somehow sandbox this or sanitize the input

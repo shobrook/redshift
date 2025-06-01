@@ -5,8 +5,10 @@ import sys
 # Local
 try:
     from redshift.agent import Agent
+    from redshift.config import Config
 except ImportError:
     from agent import Agent
+    from config import Config
 
 
 #########
@@ -14,10 +16,20 @@ except ImportError:
 #########
 
 
+def build_query_prompt() -> str:
+    pass
+
+
+def build_exception_prompt() -> str:
+    pass
+
+
 class PdbWrapper(pdb.Pdb):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, config: Config, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.prompt = "(redshift) "
+        self.config = config
+        self.agent = Agent(self, config.model, config.max_iters)
 
     ## Helpers ##
 
@@ -40,24 +52,22 @@ class PdbWrapper(pdb.Pdb):
     ## New commands ##
 
     def do_ask(self, arg: str):
-        question = arg.strip()
+        query = arg.strip()
 
         # Build the prompt for the agent:
         # - Breakpoint (file, code, etc.)
         # - Previous debugger commands
 
-        # Build the agent
-        agent = Agent(self, model, max_iters)
-
-        # Run agent
+        prompt = build_query_prompt(query)
+        output = self.agent.run(prompt)
 
         self._restore_state()
 
     def do_why(self):
-        # Explain an exception
+        prompt = build_exception_prompt()  # Error message, enriched stack trace, etc.
+        output = self.agent.run(prompt)
 
-        # Prompt should include error message, enriched stack trace, etc.
-        pass
+        self._restore_state()
 
     def do_run(self, arg: str):
         # Generates and executes code within the program context

@@ -42,7 +42,7 @@ def is_system_file(filename: str) -> bool:
     return False
 
 
-def is_third_party_file(filename: str) -> bool:
+def is_nonlocal_file(filename: str) -> bool:
     for packages_dir in site.getsitepackages():
         if filename.startswith(packages_dir):
             return True
@@ -55,16 +55,17 @@ def is_third_party_file(filename: str) -> bool:
 ######
 
 
-def is_project_file(filename: str) -> bool:
-    # Resolve symlink
-    real_filename = os.path.realpath(filename)
+# TODO: Review this
+def is_internal_frame(frame) -> bool:
+    filename = frame.f_code.co_filename
+    real_filename = os.path.realpath(filename)  # Resolve symlinks
 
     # Skip Python system files
     if is_system_file(filename) or is_system_file(real_filename):
         return False
 
-    # Skip third-party packages
-    if is_third_party_file(filename) or is_third_party_file(real_filename):
+    # Skip non-local modules
+    if is_nonlocal_file(filename) or is_nonlocal_file(real_filename):
         return False
 
     return True

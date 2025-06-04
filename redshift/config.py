@@ -57,7 +57,7 @@ class Config:
             model=os.getenv("REDSHIFT_MODEL", DEFAULT_MODEL),
             max_iters=int(os.getenv("REDSHIFT_MAX_ITERS", DEFAULT_MAX_ITERS)),
             hide_external_frames=os.getenv(
-                "REDSHIFT_HIDE_EXTERNAL_FRAMES", DEFAULT_HIDE_EXTERNAL_FRAMES
+                "REDSHIFT_HIDE_EXTERNAL_FRAMES", str(DEFAULT_HIDE_EXTERNAL_FRAMES)
             )
             .strip()
             .lower()

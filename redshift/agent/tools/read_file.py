@@ -1,9 +1,8 @@
 # Standard library
-import sys
-import traceback
 import linecache
 
 # Third party
+import json_repair
 from saplings.abstract import Tool
 from litellm import completion, encode, decode
 
@@ -152,7 +151,7 @@ def merge_chunks(chunks: list[dict[str, int]]) -> list[dict[str, int]]:
 
 
 class ReadFileTool(Tool):
-    def __init__(self, pdb):
+    def __init__(self, pdb, model: str):
         # Base attributes
         self.name = "file"
         self.description = "Searches the content of the current file semantically. Returns the most relevant code snippets from the file."
@@ -171,18 +170,41 @@ class ReadFileTool(Tool):
 
         # Additional attributes
         self.pdb = pdb
+        self.model = model
 
     def format_output(self, output: list[tuple[int, int]], **kwargs) -> str:
         if not output:
             return "No relevant code found."
 
-        output_str = ""
-        # <file_path> and <chunks>
+        filename = self.pdb.curframe.f_code.co_filename
+        lines = linecache.getlines(filename, self.pdb.curframe.f_globals)
+        breaklist = self.pdb.get_file_breaks(filename)
 
-    async def run(self, query: str, **kwargs):
-        # Get the current file
-        chunks = extract_chunks(file_path, file_content, query, self.model)
+        output_str = ""
+        for chunk in output:
+            first, last = chunk
+            chunk = self.pdb.format_lines(
+                lines[first - 1 : last], first, breaklist, self.pdb.curframe
+            )
+            chunk_str = f"<file>{filename}</file>\n<code>\n{chunk}\n</code>"
+            output_str += chunk_str + "\n\n"
+
+        output_str = output_str.rstrip()
+        return output_str
+
+    async def run(self, query: str, **kwargs) -> list[tuple[int, int]]:
+        filename = self.pdb.curframe.f_code.co_filename
+        self.pdb.message(f"Searching {filename} for: {query}")
+
+        lines = linecache.getlines(filename, self.pdb.curframe.f_globals)
+        file_content = "\n".join(lines)
+        last_lineno = len(lines)
+
+        chunks = extract_chunks(filename, file_content, query, self.model)
         chunks = clamp_chunks(chunks, last_lineno)
         chunks = merge_chunks(chunks)
         chunks = [(chunk["first"], chunk["last"]) for chunk in chunks]
+
+        # TODO: Token truncation
+
         return chunks

@@ -1,14 +1,17 @@
 # Standard library
 import pdb
 import sys
+from typing import Generator
 
 # Local
 try:
     from redshift.agent import Agent
     from redshift.config import Config
+    from redshift.shared.is_internal_frame import is_internal_frame
 except ImportError:
     from agent import Agent
     from config import Config
+    from shared.is_internal_frame import is_internal_frame
 
 
 #########
@@ -16,22 +19,27 @@ except ImportError:
 #########
 
 
-def build_query_prompt() -> str:
-    pass
-
-
-def build_exception_prompt() -> str:
-    pass
-
-
-class PdbWrapper(pdb.Pdb):
-    def __init__(self, config: Config, *args, **kwargs):
+class RedshiftPdb(pdb.Pdb):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.prompt = "(redshift) "
-        self.config = config
-        self.agent = Agent(self, config.model, config.max_iters)
+        self.prompt = "\033[31m(redshift)\033[0m "
+        self.config = (
+            Config.from_env() if kwargs.get("config") is None else kwargs["config"]
+        )
+        self.agent = Agent(self, self.config.model, self.config.max_iters)
+        # TODO: Store command history (use in _build_query_prompt as context)
 
     ## Helpers ##
+
+    def _build_query_prompt(self, query: str) -> str:
+        # TODO: Breakpoint
+        # TODO: Run command (" ".join(sys.argv))
+        # TODO: Stdin (input to the program)
+        return query
+
+    def _save_state(self):
+        self._original_curindex = self.curindex
+        self._original_lineno = self.lineno
 
     def _restore_state(self):
         self.curindex = self._original_curindex
@@ -40,34 +48,67 @@ class PdbWrapper(pdb.Pdb):
         self.set_convenience_variable(self.curframe, "_frame", self.curframe)
         self.lineno = self._original_lineno
 
-    ## Overloads ##
+    def format_lines(
+        self,
+        lines: list[str],
+        start: int,
+        breaks: tuple[int] = (),
+        frame=None,
+    ) -> str:
+        if frame:
+            curr_lineno = frame.f_lineno
+            exc_lineno = self.tb_lineno.get(frame, -1)
+        else:
+            curr_lineno = exc_lineno = -1
 
-    def interaction(self, frame, traceback):
-        super().interaction(frame, traceback)
+        lines_str = ""
+        for lineno, line in enumerate(lines, start):
+            s = str(lineno).rjust(3)
+            if len(s) < 4:
+                s += " "
+            if lineno in breaks:
+                s += "B"
+            else:
+                s += " "
+            if lineno == curr_lineno:
+                s += "->"
+            elif lineno == exc_lineno:
+                s += ">>"
 
-        # Used to restore state after running agent
-        self._original_curindex = self.curindex
-        self._original_lineno = self.lineno
+            lines_str += f"{s}\t{line.rstrip()}\n"
+
+        lines_str = lines_str.rstrip()
+        return lines_str
+
+    def iter_stack(self) -> Generator[tuple[any, int], None, None]:
+        for frame_lineno in self.stack:
+            frame, _ = frame_lineno
+            if self.config.hide_external_frames:
+                if not is_internal_frame(frame):
+                    continue
+
+            yield frame_lineno
 
     ## New commands ##
 
     def do_ask(self, arg: str):
+        self._save_state()
+
         query = arg.strip()
-
-        # Build the prompt for the agent:
-        # - Breakpoint (file, code, etc.)
-        # - Previous debugger commands
-
-        prompt = build_query_prompt(query)
+        prompt = self._build_query_prompt(query)
         output = self.agent.run(prompt)
+        self.message(output)
+
+        # TODO: Handle follow-up questions
 
         self._restore_state()
 
-    def do_why(self):
-        prompt = build_exception_prompt()  # Error message, enriched stack trace, etc.
-        output = self.agent.run(prompt)
+    # def do_fix(self):
+    #     # Use agent with more codebase tools
+    #     prompt = build_exception_prompt()  # Error message, enriched stack trace, etc.
+    #     output = self.agent.run(prompt)
 
-        self._restore_state()
+    #     self._restore_state()
 
     def do_run(self, arg: str):
         # Generates and executes code within the program context
@@ -79,45 +120,49 @@ class PdbWrapper(pdb.Pdb):
 ######
 
 
-def set_trace():
-    pass
+def run(statement, globals=None, locals=None):
+    RedshiftPdb().run(statement, globals, locals)
 
 
-def post_mortem():
-    pass
+def runeval(expression, globals=None, locals=None):
+    return RedshiftPdb().runeval(expression, globals, locals)
 
 
-async def main(file_path: str, args: list[str], is_module: bool = False):
-    custom_pdb = CustomPdb()
+def runctx(statement, globals, locals):
+    run(statement, globals, locals)
 
-    while 1:
-        try:
-            if hasattr(pdb.Pdb, "_run"):
-                # User is on Python >=3.11
-                if is_module:
-                    custom_pdb._run(pdb._ModuleTarget(file_path))
-                else:
-                    custom_pdb._run(pdb._ScriptTarget(file_path))
-            else:
-                if is_module:
-                    custom_pdb._runmodule(file_path)
-                else:
-                    custom_pdb._runscript(file_path)
 
-            if custom_pdb._user_requested_quit:
-                break
-        except Restart:
-            print(f"Restarting {file_path} with arguments:\n\t" + " ".join(args))
-        except SystemExit:
-            pass
-        except:
-            traceback.print_exc()
-            print("Uncaught exception. Entering post mortem debugging")
-            print("Running 'cont' or 'step' will restart the program")
-            t = sys.exc_info()[2]
-            pdb.interaction(None, t)
-            print(
-                "Post mortem debugger finished. The "
-                + mainpyfile
-                + " will be restarted"
-            )
+def runcall(*args, **kwds):
+    return RedshiftPdb().runcall(*args, **kwds)
+
+
+def set_trace(*, header=None):
+    redshift_pdb = RedshiftPdb()
+    if header is not None:
+        redshift_pdb.message(header)
+
+    redshift_pdb.set_trace(sys._getframe().f_back)
+
+
+def post_mortem(t=None):
+    if t is None:
+        exc = sys.exception()
+        if exc is not None:
+            t = exc.__traceback__
+
+    if t is None or (isinstance(t, BaseException) and t.__traceback__ is None):
+        raise ValueError(
+            "A valid traceback must be passed if no exception is being handled"
+        )
+
+    redshift_pdb = RedshiftPdb()
+    redshift_pdb.reset()
+    redshift_pdb.interaction(None, t)
+
+
+def pm():
+    post_mortem(sys.last_exc)
+
+
+def main():
+    pass  # TODO

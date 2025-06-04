@@ -1,0 +1,9 @@
+[project]
+name = "redshift"
+version = "0.1.0"
+description = "The world's first vibe debugger"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "saplings>=6.1.0",
+]

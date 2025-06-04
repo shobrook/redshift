@@ -20,10 +20,6 @@ class MoveFrameTool(Tool):
                     "enum": ["up", "down"],
                     "description": "Direction to move in the stack trace. 'up' moves to an older frame, 'down' moves to a newer frame.",
                 },
-                "count": {
-                    "type": "integer",
-                    "description": "Number of levels to move in the stack trace. Defaults to 1 if not provided.",
-                },
             },
             "required": ["direction"],
             "additionalProperties": False,
@@ -55,10 +51,14 @@ class MoveFrameTool(Tool):
 
             return prefix + self.pdb.format_stack_entry(frame_lineno, "\n-> ")
 
+        # TODO: Show frame above and below the current one
+
         # Show error message
         return output
 
-    async def run(self, direction: str, count: int = 1, **kwargs) -> str | None:
+    async def run(self, direction: str, **kwargs) -> str | None:
+        self.pdb.message(f"Moving {direction} the call stack")
+
         # TODO: Skip non-user frames
 
         newframe = None
@@ -66,18 +66,12 @@ class MoveFrameTool(Tool):
             if self.pdb.curindex == 0:
                 return "Already at oldest frame. Cannot move up."
 
-            if count < 0:
-                newframe = 0
-            else:
-                newframe = max(0, self.pdb.curindex - count)
+            newframe = max(0, self.pdb.curindex - 1)
         elif direction == "down":
-            if self.pdb.curindex + 1 == len(self.pdb.stack):
+            if newframe == len(self.pdb.stack):
                 return "Already at newest frame. Cannot move down."
 
-            if count < 0:
-                newframe = len(self.pdb.stack) - 1
-            else:
-                newframe = min(len(self.pdb.stack) - 1, self.pdb.curindex + count)
+            newframe = self.pdb.curindex + 1
 
         if newframe is None:
             return "Invalid direction. Use 'up' or 'down'."

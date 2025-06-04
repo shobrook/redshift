@@ -17,7 +17,7 @@ class PrintRetvalTool(Tool):
     def __init__(self, pdb):
         # Base attributes
         self.name = "retval"
-        self.description = "Prints the return value for the last return of the current function. Equivalent to the pdb 'retval' command."
+        self.description = "Returns the return value for the last return of the current function. Equivalent to the pdb 'retval' command."
         self.parameters = {
             "type": "object",
             "properties": {},
@@ -36,7 +36,12 @@ class PrintRetvalTool(Tool):
         return output
 
     async def run(self, **kwargs) -> str | None:
+        fn_name = self.pdb.curframe.f_code.co_name
+        self.pdb.message(f"Getting return value for: {fn_name}")
+
         if "__return__" not in self.pdb.curframe_locals:
             return None
 
         return serialize_val(self.pdb.curframe_locals["__return__"])
+
+        # TODO: Token truncation

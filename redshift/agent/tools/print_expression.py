@@ -17,10 +17,10 @@ except ImportError:
 #########
 
 
-def error_message() -> str:
+def error_message(expression: str) -> str:
     exc = sys.exception()
     message = traceback.format_exception_only(exc)[-1].strip()
-    message = f"***\n{message}"
+    message = f"Failed to get the value of `{expression}`:\n\n{message}"
     return message
 
 
@@ -32,14 +32,14 @@ def error_message() -> str:
 class PrintExpressionTool(Tool):
     def __init__(self, pdb):
         # Base attributes
-        self.name = "print"
-        self.description = "Prints the value of a variable or expression. Equivalent to the pdb 'p' command."
+        self.name = "expression"
+        self.description = "Returns the value of a variable or expression. Equivalent to the pdb 'print' command."
         self.parameters = {
             "type": "object",
             "properties": {
                 "expression": {
                     "type": "string",
-                    "description": "Variable or expression to print. E.g. 'variable_name' or 'self.attribute'.",
+                    "description": "Variable or expression to print. E.g. 'var_name' or 'self.attribute'.",
                 }
             },
             "required": ["expression"],
@@ -51,13 +51,17 @@ class PrintExpressionTool(Tool):
         self.pdb = pdb
 
     async def run(self, expression: str, **kwargs) -> str:
+        self.pdb.message(f"Evaluating expression: {expression}")
+
         try:
             value = eval(
                 expression, self.pdb.curframe.f_globals, self.pdb.curframe_locals
             )
             return serialize_val(value)
         except:
-            return error_message()
+            return error_message(expression)
+
+        # TODO: Token truncation
 
 
 # TODO: This is unsafe because it's executing code in the program context.

@@ -1,8 +1,6 @@
 # Standard library
-import sys
 import types
 import inspect
-import traceback
 from collections import namedtuple
 
 # Third party
@@ -54,12 +52,12 @@ class ShowSourceTool(Tool):
             output_str += f"{s}\t{line.rstrip()}\n"
 
         output_str = output_str.rstrip()
-        output_str = (
-            f"<file_path>{output.filename}</file_path>\n<code>\n{output_str}\n</code>"
-        )
+        output_str = f"<file>{output.filename}</file>\n<code>\n{output_str}\n</code>"
         return output_str
 
     async def run(self, object: str, **kwargs) -> SourceCode | str:
+        self.pdb.message(f"Retrieving source code for: {object}")
+
         value = None
         try:
             value = eval(object, self.pdb.curframe.f_globals, self.pdb.curframe_locals)
@@ -82,6 +80,8 @@ class ShowSourceTool(Tool):
             return SourceCode(filename=filename, lineno=lineno, lines=lines)
         except (OSError, TypeError) as err:
             return f"Could not retrieve source code for `{object}`: {err}"
+
+        # TODO: Token truncation
 
 
 # TODO: Try using pdir2 or pydoc as well

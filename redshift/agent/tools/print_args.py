@@ -20,7 +20,7 @@ class PrintArgsTool(Tool):
     def __init__(self, pdb):
         # Base attributes
         self.name = "args"
-        self.description = "Prints the argument list of the current function. Equivalent to the pdb 'a' command."
+        self.description = "Returns the argument list of the current function. Equivalent to the pdb 'args' command."
         self.parameters = {
             "type": "object",
             "properties": {},
@@ -40,9 +40,14 @@ class PrintArgsTool(Tool):
         return output_str
 
     async def run(self, **kwargs) -> dict[str, str]:
+        fn_name = self.pdb.curframe.f_code.co_name
+        self.pdb.message(f"Getting arguments for: {fn_name}")
+
         f_code = self.pdb.curframe.f_code
         f_locals = self.pdb.curframe_locals
         arg_reprs = serialize_call_args(f_code, f_locals)
         arg_reprs = json.loads(arg_reprs)
+
+        # TODO: Token truncation
 
         return arg_reprs

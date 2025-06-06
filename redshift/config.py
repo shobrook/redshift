@@ -3,7 +3,7 @@ import os
 import argparse
 
 DEFAULT_MODEL = "gpt-4o"
-DEFAULT_MAX_ITERS = 10
+DEFAULT_MAX_ITERS = 15
 DEFAULT_HIDE_EXTERNAL_FRAMES = True
 
 

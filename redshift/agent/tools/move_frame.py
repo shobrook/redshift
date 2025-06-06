@@ -1,17 +1,18 @@
+# Standard library
+from collections import namedtuple
+
 # Third party
 from saplings.abstract import Tool
 
 
-######
-# MAIN
-######
+FrameChange = namedtuple("FrameChange", ["direction", "count", "new_index"])
 
 
 class MoveFrameTool(Tool):
     def __init__(self, pdb):
         # Base attributes
         self.name = "move"
-        self.description = "Move the current frame up or down the stack trace. Equivalent to the pdb 'up' and 'down' commands."
+        self.description = "Moves the current frame up or down the stack trace. Equivalent to the pdb 'up' and 'down' commands."
         self.parameters = {
             "type": "object",
             "properties": {
@@ -25,6 +26,7 @@ class MoveFrameTool(Tool):
             "additionalProperties": False,
         }
         self.is_terminal = False
+        # TODO: Add a count parameter to move multiple frames at once
 
         # Additional attributes
         self.pdb = pdb
@@ -77,4 +79,8 @@ class MoveFrameTool(Tool):
             return "Invalid direction. Use 'up' or 'down'."
 
         self._select_frame(newframe)
+
+        # TODO: Print the current stack entry underneath the progress message
+        # (should be tab-indented and grey, with one frame above/below the current)
+
         return None

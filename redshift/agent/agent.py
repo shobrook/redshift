@@ -33,24 +33,33 @@ except ImportError:
 #########
 
 
-SYSTEM_PROMPT = """You are an agentic AI assistant called 'redshift' that helps users debug Python code. \
+SYSTEM_PROMPT = """You are an AI assistant called 'redshift' that helps users debug Python code. \
 You are activated when the user's program throws an exception or hits a breakpoint. \
 You will receive a query from the user about the state of their program at that breakpoint. \
 Your job is to choose the best action. Call tools to find information that will help answer the user's query. \
-Call the 'done' tool when you have enough information to answer.
+Call functions.none when you have enough information to answer.
 
 <tool_calling>
-You have tools that allow you to operate the Python debugger (pdb). \
-You can move up and down the call stack, get variable values, read source code, etc. \
-Use these tools to gather context for the user's query. \
-Call 'done' when you have enough to answer the query.
+You have tools (functions) that allow you to operate the Python debugger (pdb). \
+Follow these rules when calling tools:
+- DO NOT call a tool that you've used before with the same arguments, unless you're in a different frame.
+- DO NOT use functions.file to get the definition of a function or class. Use functions.source instead.
+- If the user is referring to, or asking for, information that is in your history, call functions.none.
+- If after attempting to gather information you are still unsure how to answer the query, call functions.none.
+- If the query is a greeting, or neither a question nor an instruction, call functions.none.
+- If the output of a function is empty or an error message, try calling the function again with DIFFERENT arguments OR try calling a different function.
+- You MUST call functions.expression at least once. Use it to get the value of a variable or expression that you believe is relevant to the user's query.
+- Call functions.args or functions.retval to understand the current state of the function call.
+- Call functions.source or functions.file to get context on relevant code (e.g. function definitions, dependencies, etc.).
+- Call functions.move to change the current frame if you need to inspect a different function call (e.g. a parent or child) in the stack trace.
+- Call functions.none when you have enough information to answer the user's query.
 </tool_calling>
 
 --
 
 Below is information about the current state of your debugger:
 
-<debugger_info>
+<debugger_state>
 This is the stack trace, with the most recent frame at the bottom. \
 An arrow (>) indicates your current frame, which determines the context of your tool calls:
 
@@ -66,10 +75,9 @@ This is your position in the file associated with the current frame:
 {curr_file_code}
 </code>
 </current_file>
-</debugger_info>
+</debugger_state>
 
-Use this information to understand the current state of your debugger as you call tools to gather context."""
-# TODO: Add rules in the <tool_calling> section
+Use this information as context as you're calling tools to operate the debugger."""
 
 
 def was_tool_called(messages: list[Message], tool_name: str) -> bool:
@@ -99,41 +107,10 @@ class Agent:
         self.max_iters = max_iters
         self.history = []
 
-    def _code_snapshot(self, window: int = 5) -> str:
-        curr_filename = self.pdb.curframe.f_code.co_filename
-        curr_lineno = self.pdb.curframe.f_lineno
-        lines = linecache.getlines(curr_filename, self.pdb.curframe.f_globals)
-        breaklist = self.pdb.get_file_breaks(curr_filename)
-
-        first = max(1, curr_lineno - window)
-        last = min(len(lines), curr_lineno + window)
-
-        snapshot = self.pdb.format_lines(
-            lines[first - 1 : last], first, breaklist, self.pdb.curframe
-        )
-        return snapshot
-
-    def _stack_trace(self) -> str:
-        stack_trace = ""
-        for frame_lineno in self.pdb.iter_stack():
-            frame, _ = frame_lineno
-            if frame is self.pdb.curframe:
-                prefix = "> "
-            else:
-                prefix = "  "
-
-            stack_trace += (
-                f"{prefix}{self.pdb.format_stack_entry(frame_lineno, '\n-> ')}\n"
-            )
-        stack_trace = stack_trace.rstrip()
-
-        return stack_trace
-
     def _update_system_prompt(self, *args, **kwargs):
-        # TODO: Formatting issues with the stack trace and code
         curr_filename = self.pdb.curframe.f_code.co_filename
-        curr_file_code = self._code_snapshot()
-        stack_trace = self._stack_trace()
+        curr_file_code = self.pdb.format_curr_line()
+        stack_trace = self.pdb.format_stack_trace()
 
         return SYSTEM_PROMPT.format(
             stack_trace=stack_trace,
@@ -167,9 +144,10 @@ class Agent:
         messages = agent.run(prompt, self.history)
 
         output = messages[-1].raw_output
-        if not was_tool_called(messages, "done"):
+        if not was_tool_called(messages, "none"):
             messages = self.history + messages
-            tool_call = agent.call_tool("done", messages)
+            # TODO: Fix these synchronous methods
+            tool_call = agent.call_tool("none", messages)
             tool_result = agent.run_tool(tool_call, messages)
             output = tool_result.raw_output
 

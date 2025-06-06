@@ -1,6 +1,7 @@
 # Standard library
 import pdb
 import sys
+import linecache
 from typing import Generator
 
 # Local
@@ -32,7 +33,7 @@ class RedshiftPdb(pdb.Pdb):
     ## Helpers ##
 
     def _build_query_prompt(self, query: str) -> str:
-        # TODO: Breakpoint
+        # TODO: Get breakpoint
         # TODO: Run command (" ".join(sys.argv))
         # TODO: Stdin (input to the program)
         return query
@@ -88,6 +89,44 @@ class RedshiftPdb(pdb.Pdb):
                     continue
 
             yield frame_lineno
+
+    def format_stack_trace(self) -> str:
+        # TODO: Optionally enrich the stack trace with serialized locals
+        # TODO: Mark hidden (e.g. external) frames
+
+        stack_trace = ""
+        for frame_lineno in self.pdb.iter_stack():
+            frame, _ = frame_lineno
+            if frame is self.pdb.curframe:
+                prefix = "> "
+            else:
+                prefix = "  "
+
+            # TODO: Remove common file path prefix from each frame
+            stack_entry = (
+                f"{prefix}{self.pdb.format_stack_entry(frame_lineno, '\n-> ')}\n"
+            )
+            if not stack_entry.strip():
+                continue
+
+            stack_trace += stack_entry
+
+        stack_trace = stack_trace.rstrip()
+        return stack_trace
+
+    def format_curr_line(self, window: int = 5) -> str:
+        curr_filename = self.pdb.curframe.f_code.co_filename
+        curr_lineno = self.pdb.curframe.f_lineno
+        lines = linecache.getlines(curr_filename, self.pdb.curframe.f_globals)
+        breaklist = self.pdb.get_file_breaks(curr_filename)
+
+        first = max(1, curr_lineno - window)
+        last = min(len(lines), curr_lineno + window)
+
+        snapshot = self.pdb.format_lines(
+            lines[first - 1 : last], first, breaklist, self.pdb.curframe
+        )
+        return snapshot
 
     ## New commands ##
 

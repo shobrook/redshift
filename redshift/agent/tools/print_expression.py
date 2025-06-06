@@ -17,13 +17,6 @@ except ImportError:
 #########
 
 
-def error_message(expression: str) -> str:
-    exc = sys.exception()
-    message = traceback.format_exception_only(exc)[-1].strip()
-    message = f"Failed to get the value of `{expression}`:\n\n{message}"
-    return message
-
-
 ######
 # MAIN
 ######
@@ -59,7 +52,10 @@ class PrintExpressionTool(Tool):
             )
             return serialize_val(value)
         except:
-            return error_message(expression)
+            exc = sys.exception()
+            message = traceback.format_exception_only(exc)[-1].strip()
+            message = f"Failed to get the value of `{expression}`:\n\n{message}"
+            return message
 
         # TODO: Token truncation
 

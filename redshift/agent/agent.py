@@ -5,8 +5,10 @@ import linecache
 from saplings.dtos import Message
 from saplings import COTAgent, Model
 
+
 # Local
 try:
+    from redshift.config import Config
     from redshift.agent.tools import (
         MoveFrameTool,
         PrintExpressionTool,
@@ -17,6 +19,7 @@ try:
         GenerateAnswerTool,
     )
 except ImportError:
+    from ..config import Config
     from agent.tools import (
         MoveFrameTool,
         PrintExpressionTool,
@@ -33,7 +36,7 @@ except ImportError:
 #########
 
 
-SYSTEM_PROMPT = """You are an AI assistant called 'redshift' that helps users debug Python code. \
+SYSTEM_PROMPT = """You are an AI assistant that helps users debug Python code. \
 You are activated when the user's program throws an exception or hits a breakpoint. \
 You will receive a query from the user about the state of their program at that breakpoint. \
 Your job is to choose the best action. Call tools to find information that will help answer the user's query. \
@@ -70,7 +73,9 @@ An arrow (>) indicates your current frame, which determines the context of your 
 This is your position in the file associated with the current frame:
 
 <current_file>
-<path>{curr_file_path}</path>
+<path>
+{curr_file_path}
+</path>
 <code>
 {curr_file_code}
 </code>
@@ -101,15 +106,14 @@ def was_tool_called(messages: list[Message], tool_name: str) -> bool:
 
 
 class Agent:
-    def __init__(self, pdb, model: str, max_iters: int):
+    def __init__(self, pdb, config: Config):
         self.pdb = pdb
-        self.model = model
-        self.max_iters = max_iters
-        self.history = []
+        self.config = config
+        self._history = []
 
     def _update_system_prompt(self, *args, **kwargs):
         curr_filename = self.pdb.curframe.f_code.co_filename
-        curr_file_code = self.pdb.format_curr_line()
+        curr_file_code = self.pdb.format_frame_line(self.pdb.curframe)
         stack_trace = self.pdb.format_stack_trace()
 
         return SYSTEM_PROMPT.format(
@@ -119,7 +123,7 @@ class Agent:
         )
 
     def reset(self):
-        self.history = []
+        self._history = []
 
     def run(self, prompt: str):
         tools = [
@@ -127,29 +131,29 @@ class Agent:
             PrintExpressionTool(self.pdb),
             PrintArgsTool(self.pdb),
             PrintRetvalTool(self.pdb),
-            ReadFileTool(self.pdb, self.model),
+            ReadFileTool(self.pdb, self.config.agent_model),
             ShowSourceTool(self.pdb),
-            GenerateAnswerTool(self.pdb, self.model),
+            GenerateAnswerTool(self.pdb, self.config.answer_model, prompt),
         ]
-        model = Model(self.model)
+        model = Model(self.config.agent_model)
         agent = COTAgent(
             tools,
             model,
             SYSTEM_PROMPT,
             tool_choice="required",
-            max_depth=self.max_iters,
+            max_depth=self.config.max_iters,
             verbose=False,
             update_prompt=self._update_system_prompt,
         )
-        messages = agent.run(prompt, self.history)
+        messages = agent.run(prompt, self._history)
 
         output = messages[-1].raw_output
         if not was_tool_called(messages, "none"):
-            messages = self.history + messages
+            messages = self._history + messages
             # TODO: Fix these synchronous methods
             tool_call = agent.call_tool("none", messages)
             tool_result = agent.run_tool(tool_call, messages)
             output = tool_result.raw_output
 
-        self.history += [Message.user(prompt), Message.assistant(output)]
+        self._history += [Message.user(prompt), Message.assistant(output)]
         return output

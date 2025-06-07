@@ -1,6 +1,6 @@
 # Standard library
-import sys
 import traceback
+from collections import namedtuple
 
 # Third party
 from saplings.abstract import Tool
@@ -12,14 +12,9 @@ except ImportError:
     from shared.serializers import serialize_val
 
 
-#########
-# HELPERS
-#########
-
-
-######
-# MAIN
-######
+ExpressionResult = namedtuple(
+    "ExpressionResult", ["expression", "value", "frame_index"]
+)
 
 
 class PrintExpressionTool(Tool):
@@ -43,22 +38,29 @@ class PrintExpressionTool(Tool):
         # Additional attributes
         self.pdb = pdb
 
-    async def run(self, expression: str, **kwargs) -> str:
-        self.pdb.message(f"Evaluating expression: {expression}")
+    def format_output(self, output: ExpressionResult) -> str:
+        # TODO: Token truncation
+        return output.value
+
+    async def run(self, expression: str, **kwargs) -> ExpressionResult:
+        self.pdb.message(f"\033[31m├──\033[0m Evaluating expression: {expression}")
+        # TODO: Use the tree branches to prefix messages
+        # TODO: Show user truncated result
 
         try:
+            # TODO: This is unsafe and should be sandboxed, or the expression should
+            # be sanitized
+
             value = eval(
                 expression, self.pdb.curframe.f_globals, self.pdb.curframe_locals
             )
-            return serialize_val(value)
-        except:
-            exc = sys.exception()
+            value = serialize_val(value)
+            return ExpressionResult(
+                expression=expression, value=value, frame_index=self.pdb.curindex
+            )
+        except Exception as exc:
             message = traceback.format_exception_only(exc)[-1].strip()
-            message = f"Failed to get the value of `{expression}`:\n\n{message}"
-            return message
-
-        # TODO: Token truncation
-
-
-# TODO: This is unsafe because it's executing code in the program context.
-# We should somehow sandbox this or sanitize the input
+            message = f"Failed to retrieve value:\n\n{message}"
+            return ExpressionResult(
+                expression=expression, value=message, frame_index=self.pdb.curindex
+            )

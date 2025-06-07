@@ -1,3 +1,6 @@
+# Standard library
+from collections import namedtuple
+
 # Third party
 from saplings.abstract import Tool
 
@@ -8,9 +11,7 @@ except ImportError:
     from shared.serializers import serialize_val
 
 
-######
-# MAIN
-######
+RetvalResult = namedtuple("RetvalResult", ["value", "frame_index"])
 
 
 class PrintRetvalTool(Tool):
@@ -29,19 +30,21 @@ class PrintRetvalTool(Tool):
         # Additional attributes
         self.pdb = pdb
 
-    def format_output(self, output: str | None) -> str:
-        if output is None:
+    def format_output(self, output: RetvalResult) -> str:
+        if output.value is None:
             return "Not yet returned."
 
-        return output
+        # TODO: Token truncation
+        return output.value
 
-    async def run(self, **kwargs) -> str | None:
+    # TODO: Implement is_active to disallow multiple calls in the same frame
+
+    async def run(self, **kwargs) -> RetvalResult:
         fn_name = self.pdb.curframe.f_code.co_name
-        self.pdb.message(f"Getting return value for: {fn_name}")
+        self.pdb.message(f"\033[31m├──\033[0m Getting return value for: {fn_name}")
 
         if "__return__" not in self.pdb.curframe_locals:
-            return None
+            return RetvalResult(value=None, frame_index=self.pdb.curindex)
 
-        return serialize_val(self.pdb.curframe_locals["__return__"])
-
-        # TODO: Token truncation
+        value = serialize_val(self.pdb.curframe_locals["__return__"])
+        return RetvalResult(value=value, frame_index=self.pdb.curindex)

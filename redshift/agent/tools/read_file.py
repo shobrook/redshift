@@ -1,5 +1,6 @@
 # Standard library
 import linecache
+from collections import namedtuple
 
 # Third party
 import json_repair
@@ -150,6 +151,9 @@ def merge_chunks(chunks: list[dict[str, int]]) -> list[dict[str, int]]:
 ######
 
 
+FileResult = namedtuple("FileResult", ["chunks", "filename", "frame_index"])
+
+
 class ReadFileTool(Tool):
     def __init__(self, pdb, model: str):
         # Base attributes
@@ -172,29 +176,28 @@ class ReadFileTool(Tool):
         self.pdb = pdb
         self.model = model
 
-    def format_output(self, output: list[tuple[int, int]], **kwargs) -> str:
-        if not output:
+    def format_output(self, output: FileResult, **kwargs) -> str:
+        if not output.chunks:
             return "No relevant code found."
 
-        filename = self.pdb.curframe.f_code.co_filename
-        lines = linecache.getlines(filename, self.pdb.curframe.f_globals)
-        breaklist = self.pdb.get_file_breaks(filename)
+        lines = linecache.getlines(output.filename, self.pdb.curframe.f_globals)
+        breaklist = self.pdb.get_file_breaks(output.filename)
 
         output_str = ""
-        for chunk in output:
+        for chunk in output.chunks:
             first, last = chunk
             chunk = self.pdb.format_lines(
                 lines[first - 1 : last], first, breaklist, self.pdb.curframe
             )
-            chunk_str = f"<file>{filename}</file>\n<code>\n{chunk}\n</code>"
+            chunk_str = f"<file>\n{output.filename}\n</file>\n<code>\n{chunk}\n</code>"
             output_str += chunk_str + "\n\n"
-
         output_str = output_str.rstrip()
+
         return output_str
 
-    async def run(self, query: str, **kwargs) -> list[tuple[int, int]]:
+    async def run(self, query: str, **kwargs) -> FileResult:
         filename = self.pdb.curframe.f_code.co_filename
-        self.pdb.message(f"Searching {filename} for: {query}")
+        self.pdb.message(f"\033[31m├──\033[0m Searching {filename} for: {query}")
 
         lines = linecache.getlines(filename, self.pdb.curframe.f_globals)
         file_content = "\n".join(lines)
@@ -205,6 +208,9 @@ class ReadFileTool(Tool):
         chunks = merge_chunks(chunks)
         chunks = [(chunk["first"], chunk["last"]) for chunk in chunks]
 
-        # TODO: Token truncation
+        return FileResult(
+            chunks=chunks, filename=filename, frame_index=self.pdb.curindex
+        )
 
-        return chunks
+
+# TODO: Make a tool for the list command (or replace this one)

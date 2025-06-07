@@ -7,17 +7,9 @@ from collections import namedtuple
 from saplings.abstract import Tool
 
 
-#########
-# HELPERS
-#########
-
-
-SourceCode = namedtuple("SourceCode", ["filename", "lineno", "lines"])
-
-
-######
-# MAIN
-######
+SourceResult = namedtuple(
+    "SourceResult", ["filename", "lineno", "lines", "frame_index"]
+)
 
 
 class ShowSourceTool(Tool):
@@ -38,10 +30,11 @@ class ShowSourceTool(Tool):
         # Additional attributes
         self.pdb = pdb
 
-    def format_output(self, output: SourceCode | str, **kwargs) -> str:
-        if isinstance(output, str):
+    def format_output(self, output: SourceResult | str, **kwargs) -> str:
+        if isinstance(output, str):  # Error
             return output
 
+        # TODO: Token truncation
         output_str = ""
         for lineno, line in enumerate(output.lines, start=output.lineno):
             s = str(lineno).rjust(3)
@@ -50,14 +43,17 @@ class ShowSourceTool(Tool):
                 s += " "
 
             output_str += f"{s}\t{line.rstrip()}\n"
-
         output_str = output_str.rstrip()
-        output_str = f"<file>{output.filename}</file>\n<code>\n{output_str}\n</code>"
+        output_str = (
+            f"<file>\n{output.filename}\n</file>\n<code>\n{output_str}\n</code>"
+        )
+
         return output_str
 
-    async def run(self, object: str, **kwargs) -> SourceCode | str:
-        self.pdb.message(f"Retrieving source code for: {object}")
+    async def run(self, object: str, **kwargs) -> SourceResult | str:
+        self.pdb.message(f"\033[31m├──\033[0m Retrieving source code for: {object}")
 
+        # TODO: Try using pdir2 or pydoc as well
         value = None
         try:
             value = eval(object, self.pdb.curframe.f_globals, self.pdb.curframe_locals)
@@ -77,11 +73,11 @@ class ShowSourceTool(Tool):
             lines, lineno = inspect.getsourcelines(value)
             lineno = max(1, lineno)
 
-            return SourceCode(filename=filename, lineno=lineno, lines=lines)
+            return SourceResult(
+                filename=filename,
+                lineno=lineno,
+                lines=lines,
+                frame_index=self.pdb.curindex,
+            )
         except (OSError, TypeError) as err:
             return f"Could not retrieve source code for `{object}`: {err}"
-
-        # TODO: Token truncation
-
-
-# TODO: Try using pdir2 or pydoc as well

@@ -1,11 +1,5 @@
-# Standard library
-from collections import namedtuple
-
 # Third party
 from saplings.abstract import Tool
-
-
-FrameChange = namedtuple("FrameChange", ["direction", "count", "new_index"])
 
 
 class MoveFrameTool(Tool):
@@ -40,9 +34,10 @@ class MoveFrameTool(Tool):
         )
         self.pdb.lineno = None
 
-    def format_output(self, output: str | None) -> str:
-        # No error message, show current stack entry
-        if not output:
+    def format_output(self, output: str | int) -> str:
+        if isinstance(output, int):  # No error
+            # TODO: Show frame above and below the current one
+
             frame_lineno = self.pdb.stack[self.pdb.curindex]
             frame, _ = frame_lineno
 
@@ -51,15 +46,15 @@ class MoveFrameTool(Tool):
             else:
                 prefix = "  "
 
-            return prefix + self.pdb.format_stack_entry(frame_lineno, "\n-> ")
+            output = prefix + self.pdb.format_stack_entry(frame_lineno, "\n-> ")
 
-        # TODO: Show frame above and below the current one
-
-        # Show error message
         return output
 
-    async def run(self, direction: str, **kwargs) -> str | None:
-        self.pdb.message(f"Moving {direction} the call stack")
+    # TODO: Implement update_prompt to protect against invalid moves (e.g.
+    # moving down when you're already at the newest frame)
+
+    async def run(self, direction: str, **kwargs) -> str | int:
+        self.pdb.message(f"\033[31m├──\033[0m Moving {direction} the call stack")
 
         # TODO: Skip non-user frames
 
@@ -83,4 +78,4 @@ class MoveFrameTool(Tool):
         # TODO: Print the current stack entry underneath the progress message
         # (should be tab-indented and grey, with one frame above/below the current)
 
-        return None
+        return self.pdb.curindex

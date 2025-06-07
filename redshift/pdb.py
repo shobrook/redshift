@@ -20,6 +20,9 @@ except ImportError:
 #########
 
 
+# TODO: Make a printer class that handles progress messages and streaming final output
+
+
 class RedshiftPdb(pdb.Pdb):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -27,16 +30,20 @@ class RedshiftPdb(pdb.Pdb):
         self.config = (
             Config.from_env() if kwargs.get("config") is None else kwargs["config"]
         )
-        self.agent = Agent(self, self.config.model, self.config.max_iters)
+        self.agent = Agent(self, self.config)
         # TODO: Store command history (use in _build_query_prompt as context)
 
     ## Helpers ##
 
     def _build_query_prompt(self, query: str) -> str:
-        # TODO: Get breakpoint
+        filename = self.curframe.f_code.co_filename
+        code = self.format_frame_line(self.curframe)
+        prompt = f"<breakpoint>\n<path>\n{filename}\n</path>\n<code>\n{code}\n</code>\n</breakpoint>"
+        prompt += f"\n\n<user_query>\n{query}\n</user_query>"
+
         # TODO: Run command (" ".join(sys.argv))
         # TODO: Stdin (input to the program)
-        return query
+        return prompt
 
     def _save_state(self):
         self._original_curindex = self.curindex
@@ -95,17 +102,15 @@ class RedshiftPdb(pdb.Pdb):
         # TODO: Mark hidden (e.g. external) frames
 
         stack_trace = ""
-        for frame_lineno in self.pdb.iter_stack():
+        for frame_lineno in self.iter_stack():
             frame, _ = frame_lineno
-            if frame is self.pdb.curframe:
+            if frame is self.curframe:
                 prefix = "> "
             else:
                 prefix = "  "
 
             # TODO: Remove common file path prefix from each frame
-            stack_entry = (
-                f"{prefix}{self.pdb.format_stack_entry(frame_lineno, '\n-> ')}\n"
-            )
+            stack_entry = f"{prefix}{self.format_stack_entry(frame_lineno, '\n-> ')}\n"
             if not stack_entry.strip():
                 continue
 
@@ -114,18 +119,16 @@ class RedshiftPdb(pdb.Pdb):
         stack_trace = stack_trace.rstrip()
         return stack_trace
 
-    def format_curr_line(self, window: int = 5) -> str:
-        curr_filename = self.pdb.curframe.f_code.co_filename
-        curr_lineno = self.pdb.curframe.f_lineno
-        lines = linecache.getlines(curr_filename, self.pdb.curframe.f_globals)
-        breaklist = self.pdb.get_file_breaks(curr_filename)
+    def format_frame_line(self, frame, window: int = 5) -> str:
+        curr_filename = frame.f_code.co_filename
+        curr_lineno = frame.f_lineno
+        lines = linecache.getlines(curr_filename, frame.f_globals)
+        breaklist = self.get_file_breaks(curr_filename)
 
         first = max(1, curr_lineno - window)
         last = min(len(lines), curr_lineno + window)
 
-        snapshot = self.pdb.format_lines(
-            lines[first - 1 : last], first, breaklist, self.pdb.curframe
-        )
+        snapshot = self.format_lines(lines[first - 1 : last], first, breaklist, frame)
         return snapshot
 
     ## New commands ##
@@ -144,7 +147,6 @@ class RedshiftPdb(pdb.Pdb):
 
     # def do_fix(self):
     #     # Use agent with more codebase tools
-    #     prompt = build_exception_prompt()  # Error message, enriched stack trace, etc.
     #     output = self.agent.run(prompt)
 
     #     self._restore_state()

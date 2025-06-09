@@ -54,7 +54,7 @@ Follow these rules when calling tools:
 - You MUST call functions.expression at least once. Use it to get the value of a variable or expression that you believe is relevant to the user's query.
 - Call functions.args or functions.retval to understand the current state of the function call.
 - Call functions.source or functions.file to get context on relevant code (e.g. function definitions, dependencies, etc.).
-- Call functions.move to change the current frame if you need to inspect a different function call (e.g. a parent or child) in the stack trace.
+- Call functions.move if you need to inspect a different function call in the stack trace.
 - Call functions.none when you have enough information to answer the user's query.
 </tool_calling>
 
@@ -63,12 +63,17 @@ Follow these rules when calling tools:
 Below is information about the current state of your debugger:
 
 <debugger_state>
-This is the stack trace, with the most recent frame at the bottom. \
-An arrow (>) indicates your current frame, which determines the context of your tool calls:
+This is the stack trace, with the most recent frame at the bottom:
 
 <stack_trace>
 {stack_trace}
 </stack_trace>
+
+This is the current frame, which determines the context of your tool calls:
+
+<current_frame>
+{curr_frame}
+</current_frame>
 
 This is your position in the file associated with the current frame:
 
@@ -118,6 +123,9 @@ class Agent:
 
         return SYSTEM_PROMPT.format(
             stack_trace=stack_trace,
+            curr_frame=self.pdb.format_stack_entry(
+                self.pdb.stack[self.pdb.curindex], "\n-> "
+            ),
             curr_file_path=curr_filename,
             curr_file_code=curr_file_code,
         )
@@ -131,7 +139,7 @@ class Agent:
             PrintExpressionTool(self.pdb),
             PrintArgsTool(self.pdb),
             PrintRetvalTool(self.pdb),
-            ReadFileTool(self.pdb, self.config.agent_model),
+            # ReadFileTool(self.pdb, self.config.agent_model),
             ShowSourceTool(self.pdb),
             GenerateAnswerTool(self.pdb, self.config.answer_model, prompt),
         ]

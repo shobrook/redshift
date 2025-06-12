@@ -231,7 +231,7 @@ def collapse_chunks(chunks: list[CodeChunk]) -> list[CodeChunk]:
 
 
 class GenerateAnswerTool(Tool):
-    def __init__(self, pdb, model: str, prompt: str):
+    def __init__(self, pdb, printer, model: str, prompt: str, history: list[Message]):
         # Base attributes
         self.name = "none"
         self.description = (
@@ -247,8 +247,10 @@ class GenerateAnswerTool(Tool):
 
         # Additional attributes
         self.pdb = pdb
+        self.printer = printer
         self.model = model
         self.prompt = prompt
+        self.history = [m.to_openai_message() for m in history]
 
     def _get_visited_frames(self, tool_results: list[any]) -> list[int]:
         frame_indices = {self.pdb._original_curindex}  # Always include original frame
@@ -426,15 +428,10 @@ class GenerateAnswerTool(Tool):
 
     def _format_code_context(self, tool_results: list[any]) -> str:
         chunks = self._convert_to_chunks(tool_results)
-        print(chunks)
         chunks = merge_chunks(chunks)
-        print(chunks)
         chunks = truncate_chunks(chunks, self.model)
-        print(chunks)
         chunks = normalize_chunks(chunks)
-        print(chunks)
         chunks = collapse_chunks(chunks)
-        print(chunks)
 
         context_str = (
             "This is additional context on the codebase and imported libraries:\n\n"
@@ -464,18 +461,19 @@ class GenerateAnswerTool(Tool):
         return x
 
     async def run(self, **kwargs) -> str:
-        self.pdb.message("\033[31m│\033[0m")
-        self.pdb.message("\033[31m└──\033[0m Generating answer...")
-
         trajectory = kwargs.get("trajectory", [])
         system_message = {
             "role": "system",
             "content": self._build_system_prompt(trajectory),
         }
-        user_message = {"role": "user", "content": self.prompt}
+        user_message = {
+            "role": "user",
+            "content": self.prompt,
+        }
+        messages = [system_message] + self.history + [user_message]
         response = completion(
             model=self.model,
-            messages=[system_message, user_message],
+            messages=messages,
             thinking={"type": "enabled", "budget_tokens": MAX_THINKING_TOKENS},
             drop_params=True,
         )

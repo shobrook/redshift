@@ -15,14 +15,6 @@ except ImportError:
     from shared.is_internal_frame import is_internal_frame
 
 
-#########
-# HELPERS
-#########
-
-
-# TODO: Make a printer class that handles progress messages and streaming final output
-
-
 class RedshiftPdb(pdb.Pdb):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -31,18 +23,23 @@ class RedshiftPdb(pdb.Pdb):
             Config.from_env() if kwargs.get("config") is None else kwargs["config"]
         )
         self.agent = Agent(self, self.config)
-        # TODO: Store command history (use in _build_query_prompt as context)
+        # TODO: Capture command history; use as context for agent
+        # TODO: Capture stdin; use as context for agent
+        # TODO: Get the program run command (" ".join(sys.argv)) and use as context
+
+        self._last_command = None
 
     ## Helpers ##
 
     def _build_query_prompt(self, query: str) -> str:
-        filename = self.curframe.f_code.co_filename
-        code = self.format_frame_line(self.curframe)
-        prompt = f"<breakpoint>\n<path>\n{filename}\n</path>\n<code>\n{code}\n</code>\n</breakpoint>"
-        prompt += f"\n\n<user_query>\n{query}\n</user_query>"
+        if self._last_command == "ask":  # Follow-up, context is already attached
+            return f"<user_query>\n{query}\n</user_query>"
 
-        # TODO: Run command (" ".join(sys.argv))
-        # TODO: Stdin (input to the program)
+        prompt = "This is the breakpoint (-> indicates the line where the program is currently paused):\n\n"
+        prompt += self.format_breakpoint()
+        prompt += "\n\nThis is my question:\n\n"
+        prompt += f"<user_query>\n{query}\n</user_query>"
+
         return prompt
 
     def _save_state(self):
@@ -55,6 +52,19 @@ class RedshiftPdb(pdb.Pdb):
         self.curframe_locals = self.curframe.f_locals
         self.set_convenience_variable(self.curframe, "_frame", self.curframe)
         self.lineno = self._original_lineno
+
+    def _is_follow_up(self, cmd: str) -> bool:
+        if cmd and cmd.lower().lstrip().startswith("ask "):
+            if self._last_command == "ask":
+                return True
+
+        return False
+
+    def format_breakpoint(self) -> str:
+        filename = self.curframe.f_code.co_filename
+        code = self.format_frame_line(self.curframe)
+        breakpoint_prompt = f"<breakpoint>\n<path>\n{filename}\n</path>\n<code>\n{code}\n</code>\n</breakpoint>"
+        return breakpoint_prompt
 
     def format_lines(
         self,
@@ -99,7 +109,7 @@ class RedshiftPdb(pdb.Pdb):
 
     def format_stack_trace(self) -> str:
         # TODO: Optionally enrich the stack trace with serialized locals
-        # TODO: Mark hidden (e.g. external) frames
+        # TODO: Mark hidden (e.g. external) frames ([n hidden frames ...])
 
         stack_trace = ""
         for frame_lineno in self.iter_stack():
@@ -109,7 +119,6 @@ class RedshiftPdb(pdb.Pdb):
             else:
                 prefix = "  "
 
-            # TODO: Remove common file path prefix from each frame
             stack_entry = f"{prefix}{self.format_stack_entry(frame_lineno, '\n-> ')}\n"
             if not stack_entry.strip():
                 continue
@@ -131,6 +140,22 @@ class RedshiftPdb(pdb.Pdb):
         snapshot = self.format_lines(lines[first - 1 : last], first, breaklist, frame)
         return snapshot
 
+    ## Overloads ##
+
+    def default(self, line):
+        if not self._is_follow_up(line):
+            self.agent.reset()
+            self._last_command = None
+
+        return super().default(line)
+
+    def onecmd(self, line):
+        if not self._is_follow_up(line):
+            self.agent.reset()
+            self._last_command = None
+
+        return super().onecmd(line)
+
     ## New commands ##
 
     def do_ask(self, arg: str):
@@ -138,11 +163,9 @@ class RedshiftPdb(pdb.Pdb):
 
         query = arg.strip()
         prompt = self._build_query_prompt(query)
-        output = self.agent.run(prompt)
-        self.message(output)
+        self.agent.run(prompt)
 
-        # TODO: Handle follow-up questions
-
+        self._last_command = "ask"
         self._restore_state()
 
     # def do_fix(self):
@@ -151,14 +174,9 @@ class RedshiftPdb(pdb.Pdb):
 
     #     self._restore_state()
 
-    def do_run(self, arg: str):
-        # Generates and executes code within the program context
-        pass
-
-
-######
-# MAIN
-######
+    # def do_run(self, arg: str):
+    #     # Generates and executes code within the program context
+    #     pass
 
 
 def run(statement, globals=None, locals=None):

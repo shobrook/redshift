@@ -105,6 +105,47 @@ def was_tool_called(messages: list[Message], tool_name: str) -> bool:
     return False
 
 
+class Printer(object):
+    RED = "\033[31m"
+    GREY = "\033[37m"
+    RESET = "\033[0m"
+    MESSAGES = {
+        "move": "Moving {arg} the call stack",
+        "args": "Getting arguments",
+        "retval": "Getting return value",
+        "source": "Reading source code",
+        "expression": "Evaluating expression",
+        "file": "Searching {arg}",
+        "none": "Generating answer",
+    }
+
+    def __init__(self, pdb):
+        self.pdb = pdb
+        self.history = []
+
+    def tool_call(self, tool_name: str, value: str | list[str], arg: str = ""):
+        message = self.MESSAGES[tool_name].format(arg=arg)
+
+        if not self.history or tool_name == "move":
+            self.pdb.message(f"{self.RED}│{self.RESET}")
+            self.pdb.message(f"{self.RED}├──{self.RESET} {message}")
+        elif self.history[-1] != tool_name:
+            self.pdb.message(f"{self.RED}│{self.RESET}")
+            self.pdb.message(f"{self.RED}├──{self.RESET} {message}")
+
+        values = [value] if isinstance(value, str) else value
+        for value in values:
+            self.pdb.message(
+                f"{self.RED}│   {self.RESET}{self.GREY}{value}{self.RESET}"
+            )
+
+        self.history.append(tool_name)
+
+    def final_output(self):
+        # TODO: Streaming
+        pass
+
+
 ######
 # MAIN
 ######
@@ -114,6 +155,7 @@ class Agent:
     def __init__(self, pdb, config: Config):
         self.pdb = pdb
         self.config = config
+        self.printer = Printer(pdb)
         self._history = []
 
     def _update_system_prompt(self, *args, **kwargs):
@@ -132,16 +174,19 @@ class Agent:
 
     def reset(self):
         self._history = []
+        self.printer.history = []
 
     def run(self, prompt: str):
         tools = [
-            MoveFrameTool(self.pdb),
-            PrintExpressionTool(self.pdb),
-            PrintArgsTool(self.pdb),
-            PrintRetvalTool(self.pdb),
-            # ReadFileTool(self.pdb, self.config.agent_model),
-            ShowSourceTool(self.pdb),
-            GenerateAnswerTool(self.pdb, self.config.answer_model, prompt),
+            MoveFrameTool(self.pdb, self.printer),
+            PrintExpressionTool(self.pdb, self.printer),
+            PrintArgsTool(self.pdb, self.printer),
+            PrintRetvalTool(self.pdb, self.printer),
+            # ReadFileTool(self.pdb, self.printer, self.config.agent_model),
+            ShowSourceTool(self.pdb, self.printer),
+            GenerateAnswerTool(
+                self.pdb, self.printer, self.config.answer_model, prompt, self._history
+            ),
         ]
         model = Model(self.config.agent_model)
         agent = COTAgent(
@@ -164,4 +209,5 @@ class Agent:
             output = tool_result.raw_output
 
         self._history += [Message.user(prompt), Message.assistant(output)]
+        self.printer.history = []
         return output

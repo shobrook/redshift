@@ -16,7 +16,6 @@ from litellm import completion, encode, decode
 MAX_MERGE_DISTANCE = 10
 MAX_FILE_TOKENS = 60000
 
-# TODO: Bias towards returning more smaller chunks rather than less larger chunks?
 PROMPT = """I want to find all the code in a file that's relevant to a query. \
 You'll be given the file content and a query. \
 Your job is to return a list of code chunks that are relevant to the query.
@@ -111,8 +110,6 @@ def clamp_chunks(
         if first > last:
             continue
 
-        # TODO: Truncate chunks that are too large (from the end not the start)
-
         clamped_chunks.append({"first": first, "last": last})
 
     return clamped_chunks
@@ -155,25 +152,30 @@ FileResult = namedtuple("FileResult", ["chunks", "filename", "frame_index"])
 
 
 class ReadFileTool(Tool):
-    def __init__(self, pdb, model: str):
+    def __init__(self, pdb, printer, model: str):
         # Base attributes
         self.name = "file"
         self.description = "Searches the content of the current file semantically. Returns the most relevant code snippets from the file."
         self.parameters = {
             "type": "object",
             "properties": {
+                "reason": {
+                    "type": "string",
+                    "description": "Reason for searching the file. Keep this brief and to the point.",
+                },
                 "query": {
                     "type": "string",
                     "description": "The search query. Should consist of keywords, e.g. 'auth handler', 'database connection', 'error handling functions', etc.",
-                }
+                },
             },
-            "required": ["query"],
+            "required": ["reason", "query"],
             "additionalProperties": False,
         }
         self.is_terminal = False
 
         # Additional attributes
         self.pdb = pdb
+        self.printer = printer
         self.model = model
 
     def format_output(self, output: FileResult, **kwargs) -> str:
@@ -197,7 +199,7 @@ class ReadFileTool(Tool):
 
     async def run(self, query: str, **kwargs) -> FileResult:
         filename = self.pdb.curframe.f_code.co_filename
-        self.pdb.message(f"\033[31m├──\033[0m Searching {filename} for: {query}")
+        self.printer.tool_call(self.name, query, arg=filename)
 
         lines = linecache.getlines(filename, self.pdb.curframe.f_globals)
         file_content = "\n".join(lines)
@@ -213,4 +215,7 @@ class ReadFileTool(Tool):
         )
 
 
-# TODO: Make a tool for the list command (or replace this one)
+# TODO: This tool isn't useful. We should instead replace it with:
+# - A tool for the list command
+# - A tool wrapping grep-ast (grep all files in the stack trace)
+# - A tool, like this, that returns a summary instead of the code

@@ -8,50 +8,50 @@ from saplings.abstract import Tool
 
 
 SourceResult = namedtuple(
-    "SourceResult", ["filename", "lineno", "lines", "frame_index"]
+    "SourceResult", ["object", "filename", "lineno", "lines", "frame_index"]
 )
 
 
 class ShowSourceTool(Tool):
-    def __init__(self, pdb):
+    def __init__(self, pdb, printer):
         # Base attributes
         self.name = "source"
         self.description = "Returns the source code for an object. This can be a variable, function, class, method, module, field, attribute, etc. Equivalent to the pdb 'source' command."
         self.parameters = {
             "type": "object",
             "properties": {
-                "object": {"type": "string", "description": "The name of the object."}
+                "reason": {
+                    "type": "string",
+                    "description": "Reason for printing the source code. Keep this brief and to the point.",
+                },
+                "object": {"type": "string", "description": "The name of the object."},
             },
-            "required": ["object"],
+            "required": ["reason", "object"],
             "additionalProperties": False,
         }
         self.is_terminal = False
 
         # Additional attributes
         self.pdb = pdb
+        self.printer = printer
 
     def format_output(self, output: SourceResult | str, **kwargs) -> str:
+        output_str = f"<frame>\n{self.pdb.format_stack_entry(self.pdb.stack[self.pdb.curindex], '\n-> ')}\n</frame>\n\n"
+
         if isinstance(output, str):  # Error
-            return output
-
-        # TODO: Token truncation
-        output_str = ""
-        for lineno, line in enumerate(output.lines, start=output.lineno):
-            s = str(lineno).rjust(3)
-            s += " "
-            if len(s) < 4:
-                s += " "
-
-            output_str += f"{s}\t{line.rstrip()}\n"
-        output_str = output_str.rstrip()
-        output_str = (
-            f"<file>\n{output.filename}\n</file>\n<code>\n{output_str}\n</code>"
-        )
+            output_str += output
+        else:
+            # TODO: Token truncation
+            breaklist = self.pdb.get_file_breaks(output.filename)
+            code = self.pdb.format_lines(output.lines, output.lineno, breaklist)
+            output_str += "Source code for "
+            output_str += f"<file>\n{output.filename}\n</file>"
+            output_str += f"\n<code>\n{code}\n</code>"
 
         return output_str
 
     async def run(self, object: str, **kwargs) -> SourceResult | str:
-        self.pdb.message(f"\033[31m├──\033[0m Retrieving source code for: {object}")
+        self.printer.tool_call(self.name, object)
 
         # TODO: Try using pdir2 or pydoc as well
         value = None
@@ -74,6 +74,7 @@ class ShowSourceTool(Tool):
             lineno = max(1, lineno)
 
             return SourceResult(
+                object=object,
                 filename=filename,
                 lineno=lineno,
                 lines=lines,
@@ -81,3 +82,6 @@ class ShowSourceTool(Tool):
             )
         except (OSError, TypeError) as err:
             return f"Could not retrieve source code for `{object}`: {err}"
+
+
+# TODO: Create more tools that leverage the inspect module

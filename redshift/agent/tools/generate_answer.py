@@ -441,7 +441,9 @@ class GenerateAnswerTool(Tool):
             context_str += "<file>\n"
             context_str += f"<path>\n{chunk.file.filename}\n</path>\n"
             context_str += f"<code>\n{chunk.to_string()}\n</code>\n"
-        context_str += "</code_context>"
+            context_str += "</file>\n\n"
+        context_str = context_str.rstrip("\n")
+        context_str += "\n</code_context>"
 
         return context_str
 
@@ -475,10 +477,9 @@ class GenerateAnswerTool(Tool):
             model=self.model,
             messages=messages,
             thinking={"type": "enabled", "budget_tokens": MAX_THINKING_TOKENS},
+            stream=True,
             drop_params=True,
         )
-        response = response.choices[0].message.content
-        # TODO: Streaming
-        self.pdb.message(response)
+        self.printer.final_output(response)
 
         return response

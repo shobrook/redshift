@@ -141,9 +141,11 @@ class Printer(object):
 
         self.history.append(tool_name)
 
-    def final_output(self):
-        # TODO: Streaming
-        pass
+    def final_output(self, response):
+        for part in response:
+            print(part.choices[0].delta.content or "", end="")
+
+        print("\n\n")
 
 
 ######

@@ -31,7 +31,8 @@ class RedshiftPdb(pdb.Pdb):
 
     ## Helpers ##
 
-    def _build_query_prompt(self, query: str) -> str:
+    def _build_query_prompt(self, arg: str) -> str:
+        query = arg.strip()
         if self._last_command == "ask":  # Follow-up, context is already attached
             return f"<user_query>\n{query}\n</user_query>"
 
@@ -159,12 +160,13 @@ class RedshiftPdb(pdb.Pdb):
     ## New commands ##
 
     def do_ask(self, arg: str):
+        if not self.curframe:
+            self.message("You can only use redshift if a frame is available")
+            return
+
         self._save_state()
-
-        query = arg.strip()
-        prompt = self._build_query_prompt(query)
+        prompt = self._build_query_prompt(arg)
         self.agent.run(prompt)
-
         self._last_command = "ask"
         self._restore_state()
 

@@ -60,7 +60,7 @@ Follow these rules when calling tools:
 
 --
 
-Below is information about the current state of your debugger:
+Below is information about the state of your debugger:
 
 <debugger_state>
 This is the stack trace, with the most recent frame at the bottom:
@@ -87,7 +87,9 @@ This is your position in the file associated with the current frame:
 </current_file>
 </debugger_state>
 
-Use this information as context as you're calling tools to operate the debugger."""
+Use this information to understand the current frame you're in as you're calling tools \
+to operate the debugger."""
+# TODO: Take stack trace out of the system prompt and make a w(here) tool?
 
 
 def was_tool_called(messages: list[Message], tool_name: str) -> bool:
@@ -116,15 +118,54 @@ class Printer(object):
         "source": "Reading source code",
         "expression": "Evaluating expression",
         "file": "Searching {arg}",
-        "none": "Generating answer",
+        "none": "Thinking",
     }
 
     def __init__(self, pdb):
         self.pdb = pdb
         self.history = []
 
-    def tool_call(self, tool_name: str, value: str | list[str], arg: str = ""):
+        self._is_thinking = False
+        self._thinking_thread = None
+
+    def _animate_thinking(self):
+        from rich.live import Live
+        from rich.text import Text
+        import time
+        import threading
+        import multiprocessing
+
+        # Use a shared value for thread communication
+        self._is_thinking = multiprocessing.Value("b", True)
+
+        # Create an animated ellipsis to indicate thinking
+        def animate_thinking():
+            with Live(refresh_per_second=4, transient=True) as live:
+                dots = 0
+                while self._is_thinking.value:
+                    text = Text(f"{self.RED}└─{self.RESET} Thinking")
+                    text.append("." * dots)
+                    live.update(text)
+                    dots = (dots + 1) % 4
+                    time.sleep(0.25)
+
+        # Start the animation in a separate thread
+        self._thinking_thread = threading.Thread(target=animate_thinking)
+        self._thinking_thread.daemon = True
+        self._thinking_thread.start()
+
+    def _stop_thinking_animation(self):
+        self._is_thinking.value = False
+        if self._thinking_thread and self._thinking_thread.is_alive():
+            self._thinking_thread.join(timeout=1.0)
+
+    def tool_call(self, tool_name: str, value: str | list[str] = "", arg: str = ""):
         message = self.MESSAGES[tool_name].format(arg=arg)
+
+        if tool_name == "none":
+            self.pdb.message(f"{self.RED}│{self.RESET}")
+            self._animate_thinking()
+            return
 
         if not self.history or tool_name == "move":
             self.pdb.message(f"{self.RED}│{self.RESET}")
@@ -141,11 +182,10 @@ class Printer(object):
 
         self.history.append(tool_name)
 
-    def final_output(self, response):
-        for part in response:
-            print(part.choices[0].delta.content or "", end="")
-
-        print("\n\n")
+    def final_output(self, response: str):
+        self._stop_thinking_animation()
+        self.pdb.message(f"{self.RED}└─{self.RESET} Finished!")
+        self.pdb.message(f"\n{response}\n")
 
 
 ######

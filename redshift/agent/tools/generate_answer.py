@@ -302,13 +302,7 @@ class GenerateAnswerTool(Tool):
 
         return chunks
 
-    def _format_stack_trace(
-        self, frame_indices: list[int], max_tokens: int = 4096
-    ) -> str:
-        # TODO: If stack trace is too big, truncate it to fit within max_tokens
-        # - Must include every frame in frame_indices
-        # - Hide external frames (if toggled)
-
+    def _format_stack_trace(self) -> str:
         context_str = "This is the stack trace at the breakpoint (most recent frame at the bottom):\n\n"
         context_str += "<stack_trace>\n"
         context_str += self.pdb.format_stack_trace()
@@ -414,13 +408,13 @@ class GenerateAnswerTool(Tool):
 
         return context_str
 
-    def _format_important_frames(
-        self, tool_results: list[any], frame_indices: list[int]
-    ) -> str:
+    def _format_important_frames(self, tool_results: list[any]) -> str:
+        visited_frames = self._get_visited_frames(tool_results)
         context_str = "This is context on important frames in the stack trace:\n\n"
         context_str += "<important_frames>\n"
         context_str += "\n\n".join(
-            self._format_frame_context(tool_results, index) for index in frame_indices
+            self._format_frame_context(tool_results, f_index)
+            for f_index in visited_frames
         )
         context_str += "\n</important_frames>"
 
@@ -449,20 +443,18 @@ class GenerateAnswerTool(Tool):
 
     def _build_system_prompt(self, trajectory: list[Message]) -> str:
         tool_results = get_tool_results(trajectory)
-        visited_frames = self._get_visited_frames(tool_results)
-        stack_trace = self._format_stack_trace(visited_frames)
-        important_frames = self._format_important_frames(tool_results, visited_frames)
+        stack_trace = self._format_stack_trace()
+        important_frames = self._format_important_frames(tool_results)
         code_context = self._format_code_context(tool_results)
 
-        x = SYSTEM_PROMPT.format(
+        return SYSTEM_PROMPT.format(
             stack_trace=stack_trace,
             important_frames=important_frames,
             code_context=code_context,
         )
-        print(x)
-        return x
 
     async def run(self, **kwargs) -> str:
+        self.printer.tool_call("none")
         trajectory = kwargs.get("trajectory", [])
         system_message = {
             "role": "system",
@@ -477,9 +469,9 @@ class GenerateAnswerTool(Tool):
             model=self.model,
             messages=messages,
             thinking={"type": "enabled", "budget_tokens": MAX_THINKING_TOKENS},
-            stream=True,
             drop_params=True,
         )
+        response = response.choices[0].message.content
         self.printer.final_output(response)
 
         return response

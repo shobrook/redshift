@@ -22,7 +22,7 @@ class RedshiftPdb(pdb.Pdb):
         self.config = (
             Config.from_env() if kwargs.get("config") is None else kwargs["config"]
         )
-        self.agent = Agent(self, self.config)
+        self._agent = Agent(self, self.config)
         # TODO: Capture command history; use as context for agent
         # TODO: Capture stdin; use as context for agent
         # TODO: Get the program run command (" ".join(sys.argv)) and use as context
@@ -109,12 +109,25 @@ class RedshiftPdb(pdb.Pdb):
             yield frame_lineno
 
     def format_stack_trace(self) -> str:
+        # TODO: Token truncation
         # TODO: Optionally enrich the stack trace with serialized locals
-        # TODO: Mark hidden (e.g. external) frames ([n hidden frames ...])
 
         stack_trace = ""
-        for frame_lineno in self.iter_stack():
+        hidden_count = 0
+        for frame_lineno in self.stack:
             frame, _ = frame_lineno
+            is_hidden = self.config.hide_external_frames and not is_internal_frame(
+                frame
+            )
+
+            if is_hidden:
+                hidden_count += 1
+                continue
+            elif hidden_count > 0:
+                plural = "s" if hidden_count > 1 else ""
+                stack_trace += f"[... {hidden_count} hidden frame{plural} ...]"
+                hidden_count = 0
+
             if frame is self.curframe:
                 prefix = "> "
             else:
@@ -125,6 +138,10 @@ class RedshiftPdb(pdb.Pdb):
                 continue
 
             stack_trace += stack_entry
+
+        if hidden_count > 0:
+            plural = "s" if hidden_count > 1 else ""
+            stack_trace += f"[... {hidden_count} hidden frame{plural} ...]"
 
         stack_trace = stack_trace.rstrip()
         return stack_trace
@@ -145,14 +162,14 @@ class RedshiftPdb(pdb.Pdb):
 
     def default(self, line):
         if not self._is_follow_up(line):
-            self.agent.reset()
+            self._agent.reset()
             self._last_command = None
 
         return super().default(line)
 
     def onecmd(self, line):
         if not self._is_follow_up(line):
-            self.agent.reset()
+            self._agent.reset()
             self._last_command = None
 
         return super().onecmd(line)
@@ -166,13 +183,13 @@ class RedshiftPdb(pdb.Pdb):
 
         self._save_state()
         prompt = self._build_query_prompt(arg)
-        self.agent.run(prompt)
+        self._agent.run(prompt)
         self._last_command = "ask"
         self._restore_state()
 
     # def do_fix(self):
     #     # Use agent with more codebase tools
-    #     output = self.agent.run(prompt)
+    #     output = self._agent.run(prompt)
 
     #     self._restore_state()
 

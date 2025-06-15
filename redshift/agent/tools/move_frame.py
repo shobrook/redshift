@@ -25,9 +25,9 @@ class MoveFrameTool(Tool):
         self.parameters = {
             "type": "object",
             "properties": {
-                "reason": {
+                "explanation": {
                     "type": "string",
-                    "description": "Reason for moving the frame. Keep this brief and to the point.",
+                    "description": "One sentence explanation as to why this tool is being used, and how it contributes to the goal.",
                 },
                 "direction": {
                     "type": "string",
@@ -35,7 +35,7 @@ class MoveFrameTool(Tool):
                     "description": "Direction to move in the stack trace. 'up' moves to an older frame, 'down' moves to a newer frame.",
                 },
             },
-            "required": ["reason", "direction"],
+            "required": ["explanation", "direction"],
             "additionalProperties": False,
         }
         self.is_terminal = False
@@ -75,10 +75,6 @@ class MoveFrameTool(Tool):
         return prefix + self.pdb.format_stack_entry(frame_lineno, "\n-> ")
 
     def format_output(self, output: MoveFrameResult) -> str:
-        # TODO: Experiment with:
-        # - Showing the code snapshot
-        # - Not showing anything
-
         if not output.error_message:
             frame_above = self._get_nearest_frame("up")
             frame_below = self._get_nearest_frame("down")
@@ -87,9 +83,12 @@ class MoveFrameTool(Tool):
             curr_frame = self._format_frame(self.pdb.curindex, prefix="> ")
             frame_below = self._format_frame(frame_below)
 
-            output_str = f"{frame_above}\n" if frame_above else ""
-            output_str += curr_frame
-            output_str += f"\n{frame_below}" if frame_below else ""
+            output_str = f"Moved {output.direction} the stack to this frame:\n\n"
+            output_str += f"<frame>\n{curr_frame}\n</frame>"
+
+            # output_str = f"{frame_above}\n" if frame_above else ""
+            # output_str += curr_frame
+            # output_str += f"\n{frame_below}" if frame_below else ""
 
             self.printer.tool_call(
                 self.name, curr_frame.splitlines(), arg=output.direction

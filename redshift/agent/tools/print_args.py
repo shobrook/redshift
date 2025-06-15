@@ -3,6 +3,7 @@ import json
 from collections import namedtuple
 
 # Third party
+from saplings.dtos import Message
 from saplings.abstract import Tool
 
 # Local
@@ -23,12 +24,12 @@ class PrintArgsTool(Tool):
         self.parameters = {
             "type": "object",
             "properties": {
-                "reason": {
+                "explanation": {
                     "type": "string",
-                    "description": "Reason for printing the arguments. Keep this brief and to the point.",
+                    "description": "One sentence explanation as to why this tool is being used, and how it contributes to the goal.",
                 },
             },
-            "required": ["reason"],
+            "required": ["explanation"],
             "additionalProperties": False,
         }
         self.is_terminal = False
@@ -40,14 +41,31 @@ class PrintArgsTool(Tool):
     def format_output(self, output: ArgsResult) -> str:
         # TODO: Token truncation
 
-        output_str = ""
+        stack_entry = self.pdb.format_stack_entry(
+            self.pdb.stack[self.pdb.curindex], "\n-> "
+        )
+        output_str = f"<frame>\n{stack_entry}\n</frame>\n\n"
+        output_str += "Arguments for the function in the frame above:\n\n"
+        output_str += "<args>\n"
         for arg_name, arg_val in output.name_to_repr.items():
             output_str += f"{arg_name} = {arg_val}\n"
-        output_str = output_str.rstrip()
+        output_str += "</args>"
 
         return output_str
 
-    # TODO: Implement is_active to disallow multiple calls in the same frame
+    def is_active(self, trajectory: list[Message] = [], **kwargs) -> bool:
+        # Ensure tool can only be called once per frame
+
+        for message in trajectory:
+            if not message.raw_output:
+                continue
+
+            if isinstance(message.raw_output, ArgsResult):
+                if message.raw_output.frame_index == self.pdb.curindex:
+                    return False
+
+        return True
+
     # TODO: Implement update_prompt to include function name in prompt
 
     async def run(self, **kwargs) -> ArgsResult:

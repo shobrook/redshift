@@ -16,17 +16,17 @@ class ShowSourceTool(Tool):
     def __init__(self, pdb, printer):
         # Base attributes
         self.name = "source"
-        self.description = "Returns the source code for an object. This can be a variable, function, class, method, module, field, attribute, etc. Equivalent to the pdb 'source' command."
+        self.description = "Returns the source code for an object. This can be a variable, function, class, method, field, attribute, etc. Equivalent to the pdb 'source' command."
         self.parameters = {
             "type": "object",
             "properties": {
-                "reason": {
+                "explanation": {
                     "type": "string",
-                    "description": "Reason for printing the source code. Keep this brief and to the point.",
+                    "description": "One sentence explanation as to why this tool is being used, and how it contributes to the goal.",
                 },
                 "object": {"type": "string", "description": "The name of the object."},
             },
-            "required": ["reason", "object"],
+            "required": ["explanation", "object"],
             "additionalProperties": False,
         }
         self.is_terminal = False
@@ -36,7 +36,10 @@ class ShowSourceTool(Tool):
         self.printer = printer
 
     def format_output(self, output: SourceResult | str, **kwargs) -> str:
-        output_str = f"<frame>\n{self.pdb.format_stack_entry(self.pdb.stack[self.pdb.curindex], '\n-> ')}\n</frame>\n\n"
+        stack_entry = self.pdb.format_stack_entry(
+            self.pdb.stack[self.pdb.curindex], "\n-> "
+        )
+        output_str = f"<frame>\n{stack_entry}\n</frame>\n\n"
 
         if isinstance(output, str):  # Error
             output_str += output
@@ -44,9 +47,11 @@ class ShowSourceTool(Tool):
             # TODO: Token truncation
             breaklist = self.pdb.get_file_breaks(output.filename)
             code = self.pdb.format_lines(output.lines, output.lineno, breaklist)
-            output_str += "Source code for "
-            output_str += f"<file>\n{output.filename}\n</file>"
-            output_str += f"\n<code>\n{code}\n</code>"
+            output_str += f"Source code for `{output.object}` in the frame above:\n\n"
+            output_str += "<source>\n"
+            output_str += f"<file>\n{output.filename}\n</file>\n"
+            output_str += f"<code>\n{code}\n</code>\n"
+            output_str += "</source>"
 
         return output_str
 
@@ -61,7 +66,7 @@ class ShowSourceTool(Tool):
             return f"Could not retrieve source code for `{object}`: {err}"
 
         if value is None:
-            return f"There is no object named `{object}` in the current frame."
+            return f"There is no object named `{object}` in this frame."
 
         if isinstance(value, types.BuiltinFunctionType) or isinstance(
             value, types.BuiltinMethodType

@@ -25,16 +25,16 @@ class PrintExpressionTool(Tool):
         self.parameters = {
             "type": "object",
             "properties": {
-                "reason": {
+                "explanation": {
                     "type": "string",
-                    "description": "Reason for printing the expression. Keep this brief and to the point.",
+                    "description": "One sentence explanation as to why this tool is being used, and how it contributes to the goal.",
                 },
                 "expression": {
                     "type": "string",
-                    "description": "Variable or expression to get the value of. E.g. 'var_name' or 'self.attribute'. Must be within the scope of the current frame.",
+                    "description": "Variable or expression to get the value of. E.g. 'var_name' or 'self.attribute'. Variables must be within the scope of the current frame.",
                 },
             },
-            "required": ["reason", "expression"],
+            "required": ["explanation", "expression"],
             "additionalProperties": False,
         }
         self.is_terminal = False
@@ -44,15 +44,16 @@ class PrintExpressionTool(Tool):
         self.printer = printer
 
     def format_output(self, output: ExpressionResult) -> str:
-        # TODO: Token truncation
         stack_entry = self.pdb.format_stack_entry(
             self.pdb.stack[self.pdb.curindex], "\n-> "
         )
         output_str = f"<frame>\n{stack_entry}\n</frame>\n\n"
+        output_str += f"Value of `{output.expression}` in the frame above:\n\n"
         if output.error:
             output_str += output.value
         else:
-            output_str += f"{output.expression} = {output.value}"
+            # TODO: Token truncation
+            output_str += f"<expression_value>\n{output.value}\n</expression_value>"
 
         return output_str
 

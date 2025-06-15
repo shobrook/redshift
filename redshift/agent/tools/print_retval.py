@@ -2,6 +2,7 @@
 from collections import namedtuple
 
 # Third party
+from saplings.dtos import Message
 from saplings.abstract import Tool
 
 # Local
@@ -22,12 +23,12 @@ class PrintRetvalTool(Tool):
         self.parameters = {
             "type": "object",
             "properties": {
-                "reason": {
+                "explanation": {
                     "type": "string",
-                    "description": "Reason for printing the return value. Keep this brief and to the point.",
+                    "description": "One sentence explanation as to why this tool is being used, and how it contributes to the goal.",
                 },
             },
-            "required": ["reason"],
+            "required": ["explanation"],
             "additionalProperties": False,
         }
         self.is_terminal = False
@@ -37,13 +38,30 @@ class PrintRetvalTool(Tool):
         self.printer = printer
 
     def format_output(self, output: RetvalResult) -> str:
+        stack_entry = self.pdb.format_stack_entry(
+            self.pdb.stack[self.pdb.curindex], "\n-> "
+        )
+        output_str = f"<frame>\n{stack_entry}\n</frame>\n\n"
+
         if output.value is None:
-            return "Not yet returned."
+            output_str += "No return value for the function in the frame above."
+        else:
+            # TODO: Token truncation
+            output_str += "Return value for the function in the frame above:\n\n"
+            output_str += f"<return_value>\n{output.value}\n</return_value>"
 
-        # TODO: Token truncation
-        return output.value
+        return output_str
 
-    # TODO: Implement is_active to disallow multiple calls in the same frame
+    def is_active(self, trajectory: list[Message] = []) -> bool:
+        for message in trajectory:
+            if not message.raw_output:
+                continue
+
+            if isinstance(message.raw_output, RetvalResult):
+                if message.raw_output.frame_index == self.pdb.curindex:
+                    return False
+
+        return True
 
     async def run(self, **kwargs) -> RetvalResult:
         fn_name = self.pdb.curframe.f_code.co_name

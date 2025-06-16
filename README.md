@@ -11,7 +11,7 @@ An LLM agent will navigate the call stack, inspect variables, and look at your c
 
 ## Features
 
-Redshift is an extension of Python's native debugger, [pdb.](https://docs.python.org/3/library/pdb.html) It supports all of pdb's commands, and introduces a few new commands:
+Redshift is an extension of Python's native debugger, [pdb](https://docs.python.org/3/library/pdb.html). It can do everything pdb does, with the addition of a few new commands:
 
 _`ask PROMPT`_
 
@@ -34,10 +34,10 @@ _`run PROMPT`_
 After installing, you need an Anthropic API key. Get one [here,](https://console.anthropic.com/settings/keys) then add it to your environment:
 
 ```bash
-> export OPENAI_API_KEY="..."
+> export ANTHROPIC_API_KEY="..."
 ```
 
-You can also use [OpenAI](https://platform.openai.com/api-keys) or other models, including local ones. Redshift wraps LiteLLM, so you can use any model [it supports.](https://docs.litellm.ai/docs/providers)
+You can also use [OpenAI](https://platform.openai.com/api-keys) or other models, including local ones. Redshift wraps LiteLLM and therefore [supports 100+ models.](https://docs.litellm.ai/docs/providers)
 
 ## Usage
 
@@ -77,20 +77,22 @@ Redshift will automatically enter post-mortem debugging if your program throws a
 
 ## Configuration
 
-You can set the following environment variables to configure Redshift:
+You can set some environment variables to customize Redshift:
 
 **`REDSHIFT_AGENT_MODEL`**
 
-This is the model that's used by the agent for tool-calling. Default is `"openai/gpt-4o"`. Use the [LiteLLM syntax](https://docs.litellm.ai/docs/providers) to specify the model (e.g. `"anthropic/claude-4"`).
+LLM that's used by the agent for tool-calling. Default is `"anthropic/claude-sonnet-4"`.
 
-**`REDSHIFT_ANSWER_MODEL`**
+Use the [LiteLLM syntax](https://docs.litellm.ai/docs/providers) to specify the model (e.g. `"openai/gpt-4o"`).
 
-This is the model that's used to generate the final answer to your question, _after_ the agent has collected context. Default is `"openai/gpt-4o"`. Use the [LiteLLM syntax](https://docs.litellm.ai/docs/providers) to specify the model (e.g. `"anthropic/claude-4"`).
+**`REDSHIFT_RESPONSE_MODEL`**
+
+LLM that's used to generate the final response. This is used _after_ the agent has collected context. Default is `"anthropic/claude-sonnet-4"`.
 
 **`REDSHIFT_MAX_ITERS`**
 
-Controls the number of tool calls the agent is allowed to make before generating a final answer. Default is `25`.
+Number of tool calls the agent is allowed to make before generating a response. Default is `25`.
 
 **`REDSHIFT_HIDE_EXTERNAL_FRAMES`**
 
-If `True`, any frames in the stack trace that are from imported packaged rather than your codebase will be ignored by Redshift. If `False`, all frames will be treated equally. Default is `True`.
+Toggles whether or not stack frames from external libraries are ignored by Redshift. Default is `True`, which means Redshift only cares about the frames in your codebase.

@@ -238,7 +238,11 @@ class Agent:
             ReadFileTool(self.pdb, self.printer, self.config.agent_model),
             ShowSourceTool(self.pdb, self.printer),
             GenerateAnswerTool(
-                self.pdb, self.printer, self.config.answer_model, prompt, self._history
+                self.pdb,
+                self.printer,
+                self.config.response_model,
+                prompt,
+                self._history,
             ),
         ]
         model = Model(self.config.agent_model)

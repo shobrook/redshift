@@ -76,22 +76,12 @@ class MoveFrameTool(Tool):
 
     def format_output(self, output: MoveFrameResult) -> str:
         if not output.error_message:
-            frame_above = self._get_nearest_frame("up")
-            frame_below = self._get_nearest_frame("down")
-
-            frame_above = self._format_frame(frame_above)
-            curr_frame = self._format_frame(self.pdb.curindex, prefix="> ")
-            frame_below = self._format_frame(frame_below)
-
+            stack_entry = self._format_frame(self.pdb.curindex, prefix="> ")
             output_str = f"Moved {output.direction} the stack to this frame:\n\n"
-            output_str += f"<frame>\n{curr_frame}\n</frame>"
-
-            # output_str = f"{frame_above}\n" if frame_above else ""
-            # output_str += curr_frame
-            # output_str += f"\n{frame_below}" if frame_below else ""
+            output_str += f"<frame>\n{stack_entry}\n</frame>"
 
             self.printer.tool_call(
-                self.name, curr_frame.splitlines(), arg=output.direction
+                self.name, stack_entry.splitlines(), arg=output.direction
             )
         else:
             output_str = output.error_message

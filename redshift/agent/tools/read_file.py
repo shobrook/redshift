@@ -3,172 +3,27 @@ import linecache
 from collections import namedtuple
 
 # Third party
-import json_repair
 from saplings.abstract import Tool
 from litellm import completion, encode, decode
-
-
-#########
-# HELPERS
-#########
-
-
-MAX_MERGE_DISTANCE = 10
-MAX_FILE_TOKENS = 60000
-
-PROMPT = """I want to find all the code in a file that's relevant to a query. \
-You'll be given the file content and a query. \
-Your job is to return a list of code chunks that are relevant to the query.
-
-Each chunk should be a line range, which is an object with "first" and "last" keys. \
-"first" is the first line number of the chunk and "last" is the last line number, both inclusive.
-
---
-
-Here is the file path and content:
-
-<path>{file_path}</path>
-<content>
-{file_content}
-</content>
-
-And here is the query:
-
-<query>
-{query}
-</query>"""
-
-
-def truncate_file_content(file_content: str, model: str) -> str:
-    tokens = encode(model=model, text=file_content)[:MAX_FILE_TOKENS]
-    truncated_content = decode(model=model, tokens=tokens)
-    return truncated_content
-
-
-def extract_chunks(
-    file_path: str, file_content: str, query: str, model: str
-) -> list[dict[str, int]]:
-    file_content = truncate_file_content(file_content, model)
-    messages = [
-        {
-            "role": "user",
-            "content": PROMPT.format(
-                file_path=file_path, file_content=file_content, query=query
-            ),
-        }
-    ]
-    response = completion(
-        model=model,
-        messages=messages,
-        response_format={
-            "type": "json_schema",
-            "json_schema": {
-                "name": "file_chunks_response",
-                "strict": True,
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "chunks": {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "first": {
-                                        "type": "integer",
-                                        "description": "The first line number of the chunk (inclusive).",
-                                    },
-                                    "last": {
-                                        "type": "integer",
-                                        "description": "The last line number of the chunk (inclusive).",
-                                    },
-                                },
-                                "required": ["first", "last"],
-                                "additionalProperties": False,
-                            },
-                            "description": "List of code chunks that are relevant to the query. Each chunk should be denoted by a line range.",
-                        }
-                    },
-                    "required": ["chunks"],
-                    "additionalProperties": False,
-                },
-            },
-        },
-        drop_params=True,
-    )
-    response = json_repair.loads(response.choices[0].message.content)
-    return response["chunks"]
-
-
-def clamp_chunks(
-    chunks: list[dict[str, int]], last_lineno: int
-) -> list[dict[str, int]]:
-    clamped_chunks = []
-    for chunk in chunks:
-        first = max(chunk["first"], 1)
-        last = min(max(chunk["last"], 1), last_lineno)
-
-        if first > last:
-            continue
-
-        clamped_chunks.append({"first": first, "last": last})
-
-    return clamped_chunks
-
-
-def merge_chunks(chunks: list[dict[str, int]]) -> list[dict[str, int]]:
-    merged_chunks = []
-    if not chunks:
-        return merged_chunks
-
-    chunks.sort(key=lambda chunk: chunk["first"])
-    curr_chunk = chunks[0]
-    for next_chunk in chunks[1:]:
-        curr_lines = set(range(curr_chunk["first"], curr_chunk["last"] + 1))
-        next_lines = set(range(next_chunk["first"], next_chunk["last"] + 1))
-
-        is_overlap = bool(curr_lines & next_lines)
-        is_within_distance = (
-            0 < next_chunk["first"] - curr_chunk["last"] <= MAX_MERGE_DISTANCE
-            or 0 < curr_chunk["first"] - next_chunk["last"] <= MAX_MERGE_DISTANCE
-        )
-
-        if is_overlap or is_within_distance:
-            curr_chunk["first"] = min(curr_chunk["first"], next_chunk["first"])
-            curr_chunk["last"] = max(curr_chunk["last"], next_chunk["last"])
-        else:
-            merged_chunks.append(curr_chunk)
-            curr_chunk = next_chunk
-
-    merged_chunks.append(curr_chunk)
-    return merged_chunks
-
-
-######
-# MAIN
-######
 
 
 FileResult = namedtuple("FileResult", ["chunks", "filename", "frame_index"])
 
 
 class ReadFileTool(Tool):
-    def __init__(self, pdb, printer, model: str):
+    def __init__(self, pdb, printer, model: str, max_tokens: int = 4096):
         # Base attributes
-        self.name = "file"
-        self.description = "Searches the content of the current file semantically. Returns the most relevant code snippets from the file."
+        self.name = "read"
+        self.description = "Returns source code for the current file. Similar to the pdb 'list' command, except it returns as many lines as possible."
         self.parameters = {
             "type": "object",
             "properties": {
-                "reason": {
+                "explanation": {
                     "type": "string",
-                    "description": "Reason for searching the file. Keep this brief and to the point.",
-                },
-                "query": {
-                    "type": "string",
-                    "description": "The search query. Should consist of keywords, e.g. 'auth handler', 'database connection', 'error handling functions', etc.",
+                    "description": "One sentence explanation as to why this tool is being used, and how it contributes to the goal.",
                 },
             },
-            "required": ["reason", "query"],
+            "required": ["explanation"],
             "additionalProperties": False,
         }
         self.is_terminal = False
@@ -177,11 +32,9 @@ class ReadFileTool(Tool):
         self.pdb = pdb
         self.printer = printer
         self.model = model
+        self.max_tokens = max_tokens
 
     def format_output(self, output: FileResult, **kwargs) -> str:
-        if not output.chunks:
-            return "No relevant code found."
-
         lines = linecache.getlines(output.filename, self.pdb.curframe.f_globals)
         breaklist = self.pdb.get_file_breaks(output.filename)
 
@@ -197,25 +50,46 @@ class ReadFileTool(Tool):
 
         return output_str
 
-    async def run(self, query: str, **kwargs) -> FileResult:
+    async def run(self, **kwargs) -> FileResult:
         filename = self.pdb.curframe.f_code.co_filename
-        self.printer.tool_call(self.name, query, arg=filename)
+        self.printer.tool_call(self.name, filename)
+
+        if filename.startswith("<frozen"):
+            tmp = self.pdb.curframe.f_globals.get("__file__")
+            if isinstance(tmp, str):
+                filename = tmp
 
         lines = linecache.getlines(filename, self.pdb.curframe.f_globals)
-        file_content = "\n".join(lines)
-        last_lineno = len(lines)
+        curr_line = self.pdb.curframe.f_lineno
 
-        chunks = extract_chunks(filename, file_content, query, self.model)
-        chunks = clamp_chunks(chunks, last_lineno)
-        chunks = merge_chunks(chunks)
-        chunks = [(chunk["first"], chunk["last"]) for chunk in chunks]
+        start_line, end_line = curr_line, curr_line
+        total_tokens = 0
 
+        while (
+            start_line > 1 or end_line < len(lines)
+        ) and total_tokens < self.max_tokens:
+            # Try to add a line before if possible
+            if start_line > 1:
+                start_line -= 1
+                line_tokens = len(encode(model=self.model, text=lines[start_line - 1]))
+                if total_tokens + line_tokens <= self.max_tokens:
+                    total_tokens += line_tokens
+                else:
+                    start_line += 1
+                    break
+
+            # Try to add a line after if possible
+            if end_line < len(lines):
+                line_tokens = len(encode(model=self.model, text=lines[end_line - 1]))
+                if total_tokens + line_tokens <= self.max_tokens:
+                    total_tokens += line_tokens
+                    end_line += 1
+                else:
+                    break
+
+        # NOTE: We use chunks so that in the future we can more intelligently
+        # truncate a file (e.g. ensuring certain symbols/lines are included)
+        chunks = [(start_line, end_line)]
         return FileResult(
             chunks=chunks, filename=filename, frame_index=self.pdb.curindex
         )
-
-
-# TODO: This tool isn't useful. We should instead replace it with:
-# - A tool for the list command
-# - A tool wrapping grep-ast (grep all files in the stack trace)
-# - A tool, like this, that returns a summary instead of the code

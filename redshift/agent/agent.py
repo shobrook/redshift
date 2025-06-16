@@ -1,10 +1,15 @@
 # Standard library
-import linecache
+import time
+import threading
+import multiprocessing
 
 # Third party
+from rich.live import Live
+from rich.text import Text
+from rich.console import Console
+from rich.markdown import Markdown
 from saplings.dtos import Message
 from saplings import COTAgent, Model
-
 
 # Local
 try:
@@ -92,21 +97,6 @@ to operate the debugger."""
 # TODO: Take stack trace out of the system prompt and make a w(here) tool?
 
 
-def was_tool_called(messages: list[Message], tool_name: str) -> bool:
-    for message in messages:
-        if message.role != "assistant":
-            continue
-
-        if not message.tool_calls:
-            continue
-
-        for tool_call in message.tool_calls:
-            if tool_call.name == tool_name:
-                return True
-
-    return False
-
-
 class Printer(object):
     RED = "\033[31m"
     GREY = "\033[37m"
@@ -117,7 +107,8 @@ class Printer(object):
         "retval": "Getting return value",
         "source": "Reading source code",
         "expression": "Evaluating expression",
-        "file": "Searching {arg}",
+        "semantic": "Searching {arg}",
+        "read": "Reading file",
         "none": "Thinking",
     }
 
@@ -127,30 +118,23 @@ class Printer(object):
 
         self._is_thinking = False
         self._thinking_thread = None
+        self._thinking_start_time = None
 
     def _animate_thinking(self):
-        from rich.live import Live
-        from rich.text import Text
-        import time
-        import threading
-        import multiprocessing
-
-        # Use a shared value for thread communication
         self._is_thinking = multiprocessing.Value("b", True)
 
-        # Create an animated ellipsis to indicate thinking
-        def animate_thinking():
+        def ellipsis():
             with Live(refresh_per_second=4, transient=True) as live:
                 dots = 0
                 while self._is_thinking.value:
-                    text = Text(f"{self.RED}└─{self.RESET} Thinking")
+                    text = Text(f"{self.RED}└──{self.RESET} Thinking")
                     text.append("." * dots)
                     live.update(text)
                     dots = (dots + 1) % 4
                     time.sleep(0.25)
 
         # Start the animation in a separate thread
-        self._thinking_thread = threading.Thread(target=animate_thinking)
+        self._thinking_thread = threading.Thread(target=ellipsis)
         self._thinking_thread.daemon = True
         self._thinking_thread.start()
 
@@ -163,6 +147,7 @@ class Printer(object):
         message = self.MESSAGES[tool_name].format(arg=arg)
 
         if tool_name == "none":
+            self._thinking_start_time = time.time()
             self.pdb.message(f"{self.RED}│{self.RESET}")
             self._animate_thinking()
             return
@@ -184,8 +169,34 @@ class Printer(object):
 
     def final_output(self, response: str):
         self._stop_thinking_animation()
-        self.pdb.message(f"{self.RED}└─{self.RESET} Finished!")
-        self.pdb.message(f"\n{response}\n")
+        time_taken = f"{time.time() - self._thinking_start_time:.2f}"
+        self.pdb.message(f"{self.RED}└──{self.RESET} Thought for {time_taken} seconds")
+
+        console = Console()
+        markdown = Markdown(
+            response,
+            code_theme="monokai",
+            inline_code_lexer="python",
+            inline_code_theme="monokai",
+        )
+        console.print()
+        console.print(markdown)
+        console.print()
+
+
+def was_tool_called(messages: list[Message], tool_name: str) -> bool:
+    for message in messages:
+        if message.role != "assistant":
+            continue
+
+        if not message.tool_calls:
+            continue
+
+        for tool_call in message.tool_calls:
+            if tool_call.name == tool_name:
+                return True
+
+    return False
 
 
 ######
@@ -224,7 +235,7 @@ class Agent:
             PrintExpressionTool(self.pdb, self.printer),
             PrintArgsTool(self.pdb, self.printer),
             PrintRetvalTool(self.pdb, self.printer),
-            # ReadFileTool(self.pdb, self.printer, self.config.agent_model),
+            ReadFileTool(self.pdb, self.printer, self.config.agent_model),
             ShowSourceTool(self.pdb, self.printer),
             GenerateAnswerTool(
                 self.pdb, self.printer, self.config.answer_model, prompt, self._history

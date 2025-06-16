@@ -9,17 +9,17 @@ from litellm import completion, encode
 
 # Local
 try:
-    from redshift.agent.tools.read_file import FileResult
     from redshift.agent.tools.print_args import ArgsResult
     from redshift.agent.tools.show_source import SourceResult
     from redshift.agent.tools.print_retval import RetvalResult
     from redshift.agent.tools.print_expression import ExpressionResult
+    from redshift.agent.tools.read_file import FileResult
 except ImportError:
-    from agent.tools.read_file import FileResult
     from agent.tools.print_args import ArgsResult
     from agent.tools.show_source import SourceResult
     from agent.tools.print_retval import RetvalResult
     from agent.tools.print_expression import ExpressionResult
+    from agent.tools.read_file import FileResult
 
 
 #########

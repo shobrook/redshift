@@ -3,11 +3,21 @@ import linecache
 from collections import namedtuple
 
 # Third party
+from saplings.dtos import Message
 from saplings.abstract import Tool
-from litellm import completion, encode, decode
+from litellm import encode
 
 
 FileResult = namedtuple("FileResult", ["chunks", "filename", "frame_index"])
+
+
+def get_filename(frame) -> str:
+    if frame.f_code.co_filename.startswith("<frozen"):
+        tmp = frame.f_globals.get("__file__")
+        if isinstance(tmp, str):
+            return tmp
+
+    return frame.f_code.co_filename
 
 
 class ReadFileTool(Tool):
@@ -44,14 +54,28 @@ class ReadFileTool(Tool):
             chunk = self.pdb.format_lines(
                 lines[first - 1 : last], first, breaklist, self.pdb.curframe
             )
-            chunk_str = f"<file>\n{output.filename}\n</file>\n<code>\n{chunk}\n</code>"
-            output_str += chunk_str + "\n\n"
+            output_str += f"<file>\n{output.filename}\n</file>\n"
+            output_str += f"<code>\n{chunk}\n</code>\n\n"
         output_str = output_str.rstrip()
 
         return output_str
 
+    def is_active(self, trajectory: list[Message] = [], **kwargs) -> bool:
+        # Ensure tool can only be called once per file
+
+        filename = get_filename(self.pdb.curframe)
+        for message in trajectory:
+            if not message.raw_output:
+                continue
+
+            if isinstance(message.raw_output, FileResult):
+                if message.raw_output.filename == filename:
+                    return False
+
+        return True
+
     async def run(self, **kwargs) -> FileResult:
-        filename = self.pdb.curframe.f_code.co_filename
+        filename = get_filename(self.pdb.curframe)
         self.printer.tool_call(self.name, filename)
 
         if filename.startswith("<frozen"):

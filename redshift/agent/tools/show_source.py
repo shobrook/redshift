@@ -25,6 +25,7 @@ class ShowSourceTool(Tool):
                     "description": "One sentence explanation as to why this tool is being used, and how it contributes to the goal.",
                 },
                 "object": {"type": "string", "description": "The name of the object."},
+                # TODO: Maybe we can make an enum of all available objects (symbols) in the current scope?
             },
             "required": ["explanation", "object"],
             "additionalProperties": False,
@@ -48,10 +49,8 @@ class ShowSourceTool(Tool):
             breaklist = self.pdb.get_file_breaks(output.filename)
             code = self.pdb.format_lines(output.lines, output.lineno, breaklist)
             output_str += f"Source code for `{output.object}` in the frame above:\n\n"
-            output_str += "<source>\n"
             output_str += f"<file>\n{output.filename}\n</file>\n"
             output_str += f"<code>\n{code}\n</code>\n"
-            output_str += "</source>"
 
         return output_str
 

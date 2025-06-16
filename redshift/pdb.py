@@ -18,7 +18,7 @@ except ImportError:
 class RedshiftPdb(pdb.Pdb):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.prompt = "\033[31m(redshift)\033[0m "
+        self.prompt = "\033[31m(Redshift)\033[0m "
         self.config = (
             Config.from_env() if kwargs.get("config") is None else kwargs["config"]
         )

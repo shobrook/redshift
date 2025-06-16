@@ -217,6 +217,4 @@ class SemanticSearchTool(Tool):
         )
 
 
-# TODO: This tool isn't useful. We should instead replace it with:
-# - A tool for the list command
-# - A tool wrapping grep-ast (grep all files in the stack trace)
+# TODO: Maybe replace this tool with one that lets you grep all files in the stack trace

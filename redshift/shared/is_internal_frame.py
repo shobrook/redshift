@@ -55,10 +55,13 @@ def is_nonlocal_file(filename: str) -> bool:
 ######
 
 
-# TODO: Review this
 def is_internal_frame(frame) -> bool:
     filename = frame.f_code.co_filename
     real_filename = os.path.realpath(filename)  # Resolve symlinks
+
+    # Skip Cython files
+    if filename.endswith(".pyx"):
+        return False
 
     # Skip Python system files
     if is_system_file(filename) or is_system_file(real_filename):

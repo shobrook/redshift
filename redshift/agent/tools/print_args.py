@@ -67,7 +67,7 @@ class PrintArgsTool(Tool):
         return True
 
     # TODO: Implement update_prompt to include function name in prompt? Same for
-    # other tools (e.g. in `retval``, current file in `file`, etc.)
+    # other tools (e.g. in `retval`, current file in `file`, etc.)
 
     async def run(self, **kwargs) -> ArgsResult:
         fn_name = self.pdb.curframe.f_code.co_name

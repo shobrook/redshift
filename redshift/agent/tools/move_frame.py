@@ -55,6 +55,11 @@ class MoveFrameTool(Tool):
         self.pdb.lineno = None
 
     def _get_nearest_frame(self, direction: str) -> int | None:
+        if direction == "up" and self.pdb.curindex == 0:
+            return None
+        elif direction == "down" and self.pdb.curindex == len(self.pdb.stack) - 1:
+            return None
+
         indices = (
             range(self.pdb.curindex - 1, -1, -1)
             if direction == "up"
@@ -99,44 +104,20 @@ class MoveFrameTool(Tool):
             self.parameters["properties"]["direction"]["enum"] = ["up"]
 
     async def run(self, direction: str, **kwargs) -> MoveFrameResult:
-        # TODO: Skip external frames
-
-        newframe = None
-        if direction == "up":
-            if self.pdb.curindex == 0:
-                return MoveFrameResult(
-                    direction=direction,
-                    frame_index=self.pdb.curindex,
-                    new_frame_index=self.pdb.curindex,
-                    error_message="Already at oldest frame. Cannot move up.",
-                )
-
-            newframe = max(0, self.pdb.curindex - 1)
-        elif direction == "down":
-            if self.pdb.curindex == len(self.pdb.stack) - 1:
-                return MoveFrameResult(
-                    direction=direction,
-                    frame_index=self.pdb.curindex,
-                    new_frame_index=self.pdb.curindex,
-                    error_message="Already at newest frame. Cannot move down.",
-                )
-
-            newframe = self.pdb.curindex + 1
-
-        if newframe is None:
-            return MoveFrameResult(
-                direction=direction,
-                frame_index=self.pdb.curindex,
-                new_frame_index=self.pdb.curindex,
-                error_message="Invalid direction. Use 'up' or 'down'.",
-            )
-
+        error_message = ""
         old_index = self.pdb.curindex
-        self._select_frame(newframe)
+        new_index = self._get_nearest_frame(direction)
+        if new_index is None:
+            if direction == "up":
+                error_message = "Already at oldest frame. Cannot move up."
+            elif direction == "down":
+                error_message = "Already at newest frame. Cannot move down."
+        else:
+            self._select_frame(new_index)
 
         return MoveFrameResult(
             direction=direction,
             frame_index=old_index,
             new_frame_index=self.pdb.curindex,
-            error_message="",
+            error_message=error_message,
         )

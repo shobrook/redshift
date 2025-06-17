@@ -94,7 +94,6 @@ This is your position in the file associated with the current frame:
 
 Use this information to understand the current frame you're in as you're calling tools \
 to operate the debugger."""
-# TODO: Take stack trace out of the system prompt and make a w(here) tool?
 
 
 class Printer(object):

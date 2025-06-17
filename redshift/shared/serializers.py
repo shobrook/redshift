@@ -164,8 +164,6 @@ def get_custom_object_str(obj: Any, visited: Set[int], level: int) -> str:
 
 
 def serialize_object(obj: object, visited: set[int], level: int) -> str:
-    # TODO: Add various size limitations
-
     # Handle built-in types
     if isinstance(obj, str):
         return f"'{obj}'"

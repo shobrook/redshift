@@ -1,6 +1,6 @@
 # Standard library
 import linecache
-from collections import defaultdict, namedtuple
+from collections import defaultdict
 
 # Third party
 from saplings.dtos import Message
@@ -9,17 +9,17 @@ from litellm import completion, encode
 
 # Local
 try:
+    from redshift.agent.tools.read_file import FileResult
     from redshift.agent.tools.print_args import ArgsResult
     from redshift.agent.tools.show_source import SourceResult
     from redshift.agent.tools.print_retval import RetvalResult
     from redshift.agent.tools.print_expression import ExpressionResult
-    from redshift.agent.tools.read_file import FileResult
 except ImportError:
+    from agent.tools.read_file import FileResult
     from agent.tools.print_args import ArgsResult
     from agent.tools.show_source import SourceResult
     from agent.tools.print_retval import RetvalResult
     from agent.tools.print_expression import ExpressionResult
-    from agent.tools.read_file import FileResult
 
 
 #########
@@ -73,16 +73,17 @@ class CodeChunk(object):
 MAX_MERGE_DISTANCE = 15
 MAX_THINKING_TOKENS = 2048
 
-# TODO: Rules for citations
 SYSTEM_PROMPT = """You are an AI assistant called 'redshift' that helps users debug Python code. \
-Your task is to answer the user's query about the state of their program at a breakpoint. \
+Your task is to answer the user's query about the state of their code at a breakpoint. \
 You will have context on the stack trace at the breakpoint, including important frames, variable values, and source code. \
-Use this context to generate an answer to the user's query.
+Use this context to answer the user's query.
 
-<rules>
-Follow these rules when generating an answer:
-- If their query refers to 'this' or 'it' and there is no other context, assume that it refers to program state at the breakpoint.
-</rules>
+<response_format>
+1. Use markdown formatting to make your response more readable. DO NOT include a title in your response.
+2. Focus on addressing the user's specific query. Be as brief as possible.
+3. If relevant, cite specific frames, variable/expression values, files, or code blocks.
+4. Your citations should display the information in an interesting way (e.g. leveraging tables, arrows, etc.).
+</response_format>
 
 --
 
@@ -350,7 +351,9 @@ class GenerateAnswerTool(Tool):
         if not args_result and not retval_result:
             return ""
 
-        context_str = "This is the function associated with the frame:\n\n"
+        context_str = (
+            "This is information about the function associated with the frame:\n\n"
+        )
         context_str += f"<function>\n<name>\n{fn_name}\n</name>\n"
 
         if args_result and args_result.name_to_repr:
@@ -410,7 +413,7 @@ class GenerateAnswerTool(Tool):
 
     def _format_important_frames(self, tool_results: list[any]) -> str:
         visited_frames = self._get_visited_frames(tool_results)
-        context_str = "This is context on important frames in the stack trace:\n\n"
+        context_str = "These are the most important frames in the stack trace:\n\n"
         context_str += "<important_frames>\n"
         context_str += "\n\n".join(
             self._format_frame_context(tool_results, f_index)
@@ -428,7 +431,7 @@ class GenerateAnswerTool(Tool):
         chunks = collapse_chunks(chunks)
 
         context_str = (
-            "This is additional context on the codebase and imported libraries:\n\n"
+            "This is additional context on the codebase and imported packages:\n\n"
         )
         context_str += "<code_context>\n"
         for chunk in chunks:

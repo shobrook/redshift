@@ -2,8 +2,8 @@
 import os
 import argparse
 
-DEFAULT_AGENT_MODEL = "anthropic/claude-sonnet-4"
-DEFAULT_RESPONSE_MODEL = "anthropic/claude-sonnet-4"
+DEFAULT_AGENT_MODEL = "anthropic/claude-sonnet-4-20250514"
+DEFAULT_RESPONSE_MODEL = "anthropic/claude-sonnet-4-20250514"
 DEFAULT_MAX_ITERS = 25
 DEFAULT_HIDE_EXTERNAL_FRAMES = True
 

@@ -39,7 +39,7 @@ After installing, you need an Anthropic API key. Get one [here,](https://console
 > export ANTHROPIC_API_KEY="..."
 ```
 
-You can also use [OpenAI](https://platform.openai.com/api-keys) or other models, including local ones. Redshift wraps LiteLLM and therefore [supports 100+ models.](https://docs.litellm.ai/docs/providers)
+You can also use [OpenAI](https://platform.openai.com/api-keys) or other models, including local ones. Redshift wraps LiteLLM, which [supports over 100 models.](https://docs.litellm.ai/docs/providers)
 
 ## Usage
 
@@ -83,13 +83,11 @@ You can set some environment variables to customize Redshift:
 
 **`REDSHIFT_AGENT_MODEL`**
 
-LLM that's used by the agent for tool-calling. Default is `"anthropic/claude-sonnet-4"`.
-
-Use the [LiteLLM syntax](https://docs.litellm.ai/docs/providers) to specify the model (e.g. `"openai/gpt-4o"`).
+LLM that's used by the agent for tool-calling. Default is `"anthropic/claude-sonnet-4-20250514"`. Use the [LiteLLM names](https://docs.litellm.ai/docs/providers) to identify the model (e.g. `"openai/gpt-4o"`).
 
 **`REDSHIFT_RESPONSE_MODEL`**
 
-LLM that's used to generate the final response. This is used _after_ the agent has collected context. Default is `"anthropic/claude-sonnet-4"`.
+LLM that's used to generate the final response. This is used _after_ the agent has collected context. Default is `"anthropic/claude-sonnet-4-20250514"`.
 
 **`REDSHIFT_MAX_ITERS`**
 

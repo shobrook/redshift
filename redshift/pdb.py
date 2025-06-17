@@ -2,6 +2,7 @@
 import pdb
 import sys
 import linecache
+import traceback
 from typing import Generator
 
 # Local
@@ -23,11 +24,10 @@ class RedshiftPdb(pdb.Pdb):
             Config.from_env() if kwargs.get("config") is None else kwargs["config"]
         )
         self._agent = Agent(self, self.config)
+        self._last_command = None  # Used to detect follow-ups
         # TODO: Capture command history; use as context for agent
         # TODO: Capture stdin; use as context for agent
-        # TODO: Get the program run command (" ".join(sys.argv)) and use as context
-
-        self._last_command = None
+        # TODO: Get program run command (" ".join(sys.argv)); use as context for agent
 
     ## Helpers ##
 
@@ -242,5 +242,74 @@ def pm():
     post_mortem(sys.last_exc)
 
 
+_usage = """\
+usage: redshift [-c command] ... [-m module | pyfile] [arg] ...
+
+Debug the Python program given by pyfile. Alternatively,
+an executable module or package to debug can be specified using
+the -m switch.
+
+Initial commands are read from .pdbrc files in your home directory
+and in the current directory, if they exist.  Commands supplied with
+-c are executed after commands from .pdbrc files.
+
+To let the script run until an exception occurs, use "-c continue".
+To let the script run up to a given line X in the debugged file, use
+"-c 'until X'"."""
+
+
 def main():
-    pass  # TODO
+    import getopt
+
+    opts, args = getopt.getopt(sys.argv[1:], "mhc:", ["help", "command="])
+
+    if not args:
+        print(_usage)
+        sys.exit(2)
+
+    if any(opt in ["-h", "--help"] for opt, optarg in opts):
+        print(_usage)
+        sys.exit()
+
+    commands = [optarg for opt, optarg in opts if opt in ["-c", "--command"]]
+
+    module_indicated = any(opt in ["-m"] for opt, optarg in opts)
+    cls = pdb._ModuleTarget if module_indicated else pdb._ScriptTarget
+    target = cls(args[0])
+
+    target.check()
+
+    sys.argv[:] = args  # Hide "redshift" and redshift options from argument list
+
+    config = Config.from_args()
+    pdb = RedshiftPdb(config=config)
+    pdb.rcLines.extend(commands)
+    while True:
+        try:
+            pdb._run(target)
+            if pdb._user_requested_quit:
+                break
+            print("The program finished and will be restarted")
+        except pdb.Restart:
+            print("Restarting", target, "with arguments:")
+            print("\t" + " ".join(sys.argv[1:]))
+        except SystemExit as e:
+            # In most cases SystemExit does not warrant a post-mortem session.
+            print("The program exited via sys.exit(). Exit status:", end=" ")
+            print(e)
+        except SyntaxError:
+            traceback.print_exc()
+            sys.exit(1)
+        except BaseException as e:
+            traceback.print_exc()
+            print("Uncaught exception. Entering post mortem debugging")
+            print("Running 'cont' or 'step' will restart the program")
+            t = e.__traceback__
+            pdb.interaction(None, t)
+            print("Post mortem debugger finished. The " + target + " will be restarted")
+
+
+# TODO: Test post-mortem / exception handling
+# TODO: Test async + multithreading
+# TODO: Make a Truncator class that has differen token-truncation methods
+# TODO: Improve all the tool prompts

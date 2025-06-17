@@ -40,6 +40,8 @@ After installing, you need an Anthropic API key. Get one [here,](https://console
 
 You can also use [OpenAI](https://platform.openai.com/api-keys) or other models, including local ones. Redshift wraps LiteLLM, which [supports over 100 models.](https://docs.litellm.ai/docs/providers)
 
+> Note: This is still experimental and likely to be buggy. Stable release coming very soon.
+
 ## Usage
 
 You can set a breakpoint the same way you would in pdb:

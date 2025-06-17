@@ -117,3 +117,6 @@ class ReadFileTool(Tool):
         return FileResult(
             chunks=chunks, filename=filename, frame_index=self.pdb.curindex
         )
+
+
+# TODO: Allow tool to specify a line range

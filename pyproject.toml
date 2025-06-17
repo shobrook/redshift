@@ -1,5 +1,5 @@
 [project]
-name = "redshift"
+name = "redshift-cli"
 version = "0.1.0"
 description = "The world's first vibe debugger"
 readme = "README.md"

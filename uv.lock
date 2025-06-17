@@ -773,7 +773,7 @@ wheels = [
 ]
 
 [[package]]
-name = "redshift"
+name = "redshift-cli"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

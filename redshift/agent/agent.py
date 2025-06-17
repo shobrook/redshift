@@ -128,6 +128,7 @@ class Printer(object):
                 while self._is_thinking.value:
                     text = Text(f"{self.RED}└──{self.RESET} Thinking")
                     text.append("." * dots)
+                    text.append("\n")
                     live.update(text)
                     dots = (dots + 1) % 4
                     time.sleep(0.25)

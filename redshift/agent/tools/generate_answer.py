@@ -82,7 +82,9 @@ Use this context to answer the user's query.
 1. Use markdown formatting to make your response more readable. DO NOT include a title in your response.
 2. Focus on addressing the user's specific query. Be as brief as possible.
 3. If relevant, cite specific frames, variable/expression values, files, or code blocks.
-4. Your citations should display the information in an interesting way (e.g. leveraging tables, arrows, etc.).
+4. Display citations in an interesting way (e.g. leveraging tables, arrows, etc.) if you can. DO NOT overdo it.
+5. Keep a terse and professional tone.
+6. Keep your response brief and to the point.
 </response_format>
 
 --

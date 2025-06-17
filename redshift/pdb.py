@@ -187,16 +187,6 @@ class RedshiftPdb(pdb.Pdb):
         self._last_command = "ask"
         self._restore_state()
 
-    # def do_fix(self):
-    #     # Use agent with more codebase tools
-    #     output = self._agent.run(prompt)
-
-    #     self._restore_state()
-
-    # def do_run(self, arg: str):
-    #     # Generates and executes code within the program context
-    #     pass
-
 
 def run(statement, globals=None, locals=None):
     RedshiftPdb().run(statement, globals, locals)

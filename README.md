@@ -3,11 +3,10 @@
 Redshift is a vibe debugger for Python. When a breakpoint is hit, you can ask questions like:
 
 - "Why is this function returning null?"
-- "How many items are in `array`?"
+- "How many items in `array` are strings?"
 - "Which condition made the loop break?"
-- "Why isn't training loss decreasing?"
 
-An agent will navigate the call stack, inspect variables, and look at your code to figure out an answer. Think of this as Claude Code but for debugging.
+An agent will navigate the call stack, inspect variables, and look at your code to figure out an answer. Think of it like Claude Code but for debugging.
 
 ![Demo](./demo.gif)
 
@@ -17,15 +16,15 @@ Redshift is an extension of Python's native debugger, [pdb](https://docs.python.
 
 _`ask PROMPT`_
 
-Ask a question about the state of your program at a breakpoint or exception. An agent will autonomously operate the debugger to investigate and figure out an answer.
+Ask a question about the state of your program. An agent will operate the debugger to investigate and figure out an answer. Save yourself the busywork of digging into the stack trace.
 
 _`fix [PROMPT]`_
 
-(Coming soon) If an exception is thrown, you can run this to find the root cause of the issue and propose a fix. The output will be a patch (diff) that you can auto-apply to your codebase. You may provide an optional prompt describing the issue.
+(Coming soon) When an exception is thrown, run this to find the root cause of the issue and get a fix. The output will be a patch that you can apply to your codebase. You can provide an optional prompt describing the issue.
 
 _`run PROMPT`_
 
-(Coming soon) Generates and executes code in the context of the current scope. Code will not be executed without your approval, and it'll run in an interpret whose global namespace is a copy of the variables defined at the current line of code.
+(Coming soon) Generates and executes code in the context of the current scope. It'll run in an interpreter whose namespace is a direct copy of the program state at the current line of code. Generated code will not be executed without your approval.
 
 ## Installation
 
@@ -54,13 +53,13 @@ def foo():
     # ...
 ```
 
-You can also avoid the import by overriding the built-in `breakpoint` function:
+Alternatively, you can avoid the import by overriding the built-in `breakpoint` function:
 
 ```bash
 export PYTHONBREAKPOINT=redshift.set_trace
 ```
 
-Then you can do this:
+->
 
 ```python
 def foo():
@@ -79,11 +78,11 @@ Redshift will automatically enter post-mortem debugging if your program throws a
 
 ## Configuration
 
-You can set some environment variables to customize Redshift:
+You can customize Redshift using some environment variables:
 
 **`REDSHIFT_AGENT_MODEL`**
 
-LLM that's used by the agent for tool-calling. Default is `"anthropic/claude-sonnet-4-20250514"`. Use the [LiteLLM names](https://docs.litellm.ai/docs/providers) to identify the model (e.g. `"openai/gpt-4o"`).
+LLM that's used by the agent for tool-calling. Default is `"anthropic/claude-sonnet-4-20250514"`. Use [LiteLLM names](https://docs.litellm.ai/docs/providers) to identify the model (e.g. `"openai/gpt-4o"`).
 
 **`REDSHIFT_RESPONSE_MODEL`**
 

@@ -17,7 +17,7 @@ ArgsResult = namedtuple("ArgsResult", ["name_to_repr", "frame_index"])
 
 
 class PrintArgsTool(Tool):
-    def __init__(self, pdb, printer):
+    def __init__(self, pdb, printer, truncator, max_tokens: int = 4096):
         # Base attributes
         self.name = "args"
         self.description = "Returns the argument list of the current function. Equivalent to the pdb 'args' command."
@@ -37,19 +37,21 @@ class PrintArgsTool(Tool):
         # Additional attributes
         self.pdb = pdb
         self.printer = printer
+        self.truncator = truncator
+        self.max_tokens = max_tokens
 
     def format_output(self, output: ArgsResult) -> str:
-        # TODO: Token truncation
-
         stack_entry = self.pdb.format_stack_entry(
             self.pdb.stack[self.pdb.curindex], "\n-> "
         )
         output_str = f"<frame>\n{stack_entry}\n</frame>\n\n"
         output_str += "Arguments for the function in the frame above:\n\n"
         output_str += "<args>\n"
+        args_str = ""
         for arg_name, arg_val in output.name_to_repr.items():
-            output_str += f"{arg_name} = {arg_val}\n"
-        output_str += "</args>"
+            args_str += f"{arg_name} = {arg_val}\n"
+        output_str += self.truncator.middle_truncate(args_str, self.max_tokens)
+        output_str += "\n</args>"
 
         return output_str
 

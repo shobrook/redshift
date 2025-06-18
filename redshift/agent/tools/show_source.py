@@ -13,7 +13,7 @@ SourceResult = namedtuple(
 
 
 class ShowSourceTool(Tool):
-    def __init__(self, pdb, printer):
+    def __init__(self, pdb, printer, truncator, max_tokens: int = 4096):
         # Base attributes
         self.name = "source"
         self.description = "Returns the source code for an object. This can be a variable, function, class, method, field, attribute, etc. Equivalent to the pdb 'source' command."
@@ -35,6 +35,8 @@ class ShowSourceTool(Tool):
         # Additional attributes
         self.pdb = pdb
         self.printer = printer
+        self.truncator = truncator
+        self.max_tokens = max_tokens
 
     def format_output(self, output: SourceResult | str, **kwargs) -> str:
         stack_entry = self.pdb.format_stack_entry(
@@ -45,9 +47,9 @@ class ShowSourceTool(Tool):
         if isinstance(output, str):  # Error
             output_str += output
         else:
-            # TODO: Token truncation
             breaklist = self.pdb.get_file_breaks(output.filename)
             code = self.pdb.format_lines(output.lines, output.lineno, breaklist)
+            code = self.truncator.standard_truncate(code, self.max_tokens)
             output_str += f"Source code for `{output.object}` in the frame above:\n\n"
             output_str += f"<file>\n{output.filename}\n</file>\n"
             output_str += f"<code>\n{code}\n</code>\n"
@@ -86,6 +88,3 @@ class ShowSourceTool(Tool):
             )
         except (OSError, TypeError) as err:
             return f"Could not retrieve source code for `{object}`: {err}"
-
-
-# TODO: Create more tools that leverage the inspect module

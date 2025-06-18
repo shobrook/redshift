@@ -16,7 +16,7 @@ RetvalResult = namedtuple("RetvalResult", ["value", "frame_index"])
 
 
 class PrintRetvalTool(Tool):
-    def __init__(self, pdb, printer):
+    def __init__(self, pdb, printer, truncator, max_tokens: int = 4096):
         # Base attributes
         self.name = "retval"
         self.description = "Returns the return value for the last return of the current function. Equivalent to the pdb 'retval' command."
@@ -36,6 +36,8 @@ class PrintRetvalTool(Tool):
         # Additional attributes
         self.pdb = pdb
         self.printer = printer
+        self.truncator = truncator
+        self.max_tokens = max_tokens
 
     def format_output(self, output: RetvalResult) -> str:
         stack_entry = self.pdb.format_stack_entry(
@@ -46,9 +48,9 @@ class PrintRetvalTool(Tool):
         if output.value is None:
             output_str += "No return value for the function in the frame above."
         else:
-            # TODO: Token truncation
+            truncated_val = self.truncator.middle_truncate(output.value)
             output_str += "Return value for the function in the frame above:\n\n"
-            output_str += f"<return_value>\n{output.value}\n</return_value>"
+            output_str += f"<return_value>\n{truncated_val}\n</return_value>"
 
         return output_str
 

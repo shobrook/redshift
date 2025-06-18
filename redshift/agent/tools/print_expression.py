@@ -18,7 +18,7 @@ ExpressionResult = namedtuple(
 
 
 class PrintExpressionTool(Tool):
-    def __init__(self, pdb, printer):
+    def __init__(self, pdb, printer, truncator, max_tokens: int = 4096):
         # Base attributes
         self.name = "expression"
         self.description = "Returns the value of a variable or expression. Equivalent to the pdb 'print' command."
@@ -42,6 +42,8 @@ class PrintExpressionTool(Tool):
         # Additional attributes
         self.pdb = pdb
         self.printer = printer
+        self.truncator = truncator
+        self.max_tokens = max_tokens
 
     def format_output(self, output: ExpressionResult) -> str:
         stack_entry = self.pdb.format_stack_entry(
@@ -52,8 +54,10 @@ class PrintExpressionTool(Tool):
         if output.error:
             output_str += output.value
         else:
-            # TODO: Token truncation
-            output_str += f"<expression_value>\n{output.value}\n</expression_value>"
+            truncated_val = self.truncator.middle_truncate(
+                output.value, self.max_tokens
+            )
+            output_str += f"<expression_value>\n{truncated_val}\n</expression_value>"
 
         return output_str
 
@@ -83,6 +87,3 @@ class PrintExpressionTool(Tool):
                 frame_index=self.pdb.curindex,
                 error=True,
             )
-
-
-# TODO: Add a dir() tool to check available variables (ignore built-ins)

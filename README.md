@@ -6,7 +6,7 @@ Redshift is a vibe debugger for Python. When a breakpoint is hit, you can ask qu
 - "How many items in `array` are strings?"
 - "Which condition made the loop break?"
 
-An agent will navigate the call stack, inspect variables, and look at your code to figure out an answer. Think of it as Claude Code but for debugging.
+An agent will navigate the call stack, inspect variables, and look at your code to figure out an answer. Think of it like Claude Code but for debugging.
 
 ![Demo](./demo.gif)
 
@@ -32,13 +32,13 @@ _`run PROMPT`_
 > pip install redshift-cli
 ```
 
-After installing, you need an Anthropic API key. Get one [here,](https://console.anthropic.com/settings/keys) then add it to your environment:
+After installing, you need connect to Anthropic. Get an API key [here,](https://console.anthropic.com/settings/keys) then add it to your environment:
 
 ```bash
 > export ANTHROPIC_API_KEY="..."
 ```
 
-You can also use [OpenAI](https://platform.openai.com/api-keys) or other models, including local ones. Redshift wraps LiteLLM, which [supports over 100 models.](https://docs.litellm.ai/docs/providers)
+You can also use [OpenAI](https://platform.openai.com/api-keys) or other providers, including local ones like ollama. Redshift wraps LiteLLM, which [supports over 100 models.](https://docs.litellm.ai/docs/providers)
 
 > Note: This is still experimental and likely to be buggy. Stable release coming very soon.
 

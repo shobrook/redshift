@@ -21,7 +21,7 @@ def get_filename(frame) -> str:
 
 
 class ReadFileTool(Tool):
-    def __init__(self, pdb, printer, model: str, max_tokens: int = 4096):
+    def __init__(self, pdb, printer, truncator, max_tokens: int = 4096):
         # Base attributes
         self.name = "read"
         self.description = "Returns source code for the current file. Similar to the pdb 'list' command, except it returns as many lines as possible."
@@ -41,7 +41,7 @@ class ReadFileTool(Tool):
         # Additional attributes
         self.pdb = pdb
         self.printer = printer
-        self.model = model
+        self.truncator = truncator
         self.max_tokens = max_tokens
 
     def format_output(self, output: FileResult, **kwargs) -> str:
@@ -86,33 +86,11 @@ class ReadFileTool(Tool):
         lines = linecache.getlines(filename, self.pdb.curframe.f_globals)
         curr_line = self.pdb.curframe.f_lineno
 
-        start_line, end_line = curr_line, curr_line
-        total_tokens = 0
-
-        while (
-            start_line > 1 or end_line < len(lines)
-        ) and total_tokens < self.max_tokens:
-            # Try to add a line before if possible
-            if start_line > 1:
-                start_line -= 1
-                line_tokens = len(encode(model=self.model, text=lines[start_line - 1]))
-                if total_tokens + line_tokens <= self.max_tokens:
-                    total_tokens += line_tokens
-                else:
-                    start_line += 1
-                    break
-
-            # Try to add a line after if possible
-            if end_line < len(lines):
-                line_tokens = len(encode(model=self.model, text=lines[end_line - 1]))
-                if total_tokens + line_tokens <= self.max_tokens:
-                    total_tokens += line_tokens
-                    end_line += 1
-                else:
-                    break
-
         # NOTE: We use chunks so that in the future we can more intelligently
         # truncate a file (e.g. ensuring certain symbols/lines are included)
+        start_line, end_line = self.truncator.window_truncate(
+            lines, curr_line, self.max_tokens
+        )
         chunks = [(start_line, end_line)]
         return FileResult(
             chunks=chunks, filename=filename, frame_index=self.pdb.curindex

@@ -23,6 +23,7 @@ try:
         ShowSourceTool,
         GenerateAnswerTool,
     )
+    from redshift.shared.truncator import Truncator
 except ImportError:
     from ..config import Config
     from agent.tools import (
@@ -34,6 +35,7 @@ except ImportError:
         ShowSourceTool,
         GenerateAnswerTool,
     )
+    from shared.truncator import Truncator
 
 
 #########
@@ -230,13 +232,14 @@ class Agent:
         self.printer.history = []
 
     def run(self, prompt: str):
+        truncator = Truncator(self.config.agent_model)
         tools = [
             MoveFrameTool(self.pdb, self.printer),
-            PrintExpressionTool(self.pdb, self.printer),
-            PrintArgsTool(self.pdb, self.printer),
-            PrintRetvalTool(self.pdb, self.printer),
-            ReadFileTool(self.pdb, self.printer, self.config.agent_model),
-            ShowSourceTool(self.pdb, self.printer),
+            PrintExpressionTool(self.pdb, self.printer, truncator),
+            PrintArgsTool(self.pdb, self.printer, truncator),
+            PrintRetvalTool(self.pdb, self.printer, truncator),
+            ReadFileTool(self.pdb, self.printer, truncator),
+            ShowSourceTool(self.pdb, self.printer, truncator),
             GenerateAnswerTool(
                 self.pdb,
                 self.printer,

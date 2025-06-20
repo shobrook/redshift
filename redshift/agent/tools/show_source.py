@@ -49,7 +49,7 @@ class ShowSourceTool(Tool):
         else:
             breaklist = self.pdb.get_file_breaks(output.filename)
             code = self.pdb.format_lines(output.lines, output.lineno, breaklist)
-            code = self.truncator.standard_truncate(code, self.max_tokens)
+            code = self.truncator.truncate_end(code, self.max_tokens, type="line")
             output_str += f"Source code for `{output.object}` in the frame above:\n\n"
             output_str += f"<file>\n{output.filename}\n</file>\n"
             output_str += f"<code>\n{code}\n</code>\n"

@@ -48,7 +48,9 @@ class PrintRetvalTool(Tool):
         if output.value is None:
             output_str += "No return value for the function in the frame above."
         else:
-            truncated_val = self.truncator.middle_truncate(output.value)
+            truncated_val = self.truncator.truncate_middle(
+                output.value, self.max_tokens, type="char"
+            )
             output_str += "Return value for the function in the frame above:\n\n"
             output_str += f"<return_value>\n{truncated_val}\n</return_value>"
 

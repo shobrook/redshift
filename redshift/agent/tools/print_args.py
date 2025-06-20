@@ -50,7 +50,9 @@ class PrintArgsTool(Tool):
         args_str = ""
         for arg_name, arg_val in output.name_to_repr.items():
             args_str += f"{arg_name} = {arg_val}\n"
-        output_str += self.truncator.middle_truncate(args_str, self.max_tokens)
+        output_str += self.truncator.truncate_middle(
+            args_str, self.max_tokens, type="line"
+        )
         output_str += "\n</args>"
 
         return output_str

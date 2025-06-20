@@ -1,3 +1,6 @@
+# Standard library
+from typing import Literal
+
 # Third party
 from litellm import encode, decode
 
@@ -6,10 +9,51 @@ class Truncator:
     def __init__(self, model: str):
         self.model = model
 
-    def standard_truncate(self, text: str, max_tokens: int) -> str:
-        tokens = encode(model=self.model, text=text)[:max_tokens]
-        truncated_text = decode(model=self.model, tokens=tokens)
-        return f"{truncated_text} ..."
+    def truncate_end(
+        self, text: str, max_tokens: int, type: Literal["line", "char"] = "char"
+    ) -> str:
+        if len(encode(model=self.model, text=text)) <= max_tokens:
+            return text
+
+        if type == "line":
+            lines = text.splitlines()
+            truncated_lines = []
+            num_tokens = 0
+            for line in lines:
+                line_tokens = len(encode(model=self.model, text=line))
+                if num_tokens + line_tokens > max_tokens:
+                    break
+
+                num_tokens += line_tokens
+                truncated_lines.append(line)
+
+            return "\n".join(truncated_lines) + "\n..."
+        elif type == "char":
+            tokens = encode(model=self.model, text=text)[:max_tokens]
+            truncated_text = decode(model=self.model, tokens=tokens)
+            return f"{truncated_text} ..."
+
+        return text
+
+    def truncate_middle(
+        self, text: str, max_tokens: int, type: Literal["line", "char"] = "char"
+    ) -> str:
+        if len(encode(model=self.model, text=text)) <= max_tokens:
+            return text
+
+        if type == "line":
+            # TODO: Implement
+            return text
+        elif type == "char":
+            tokens = encode(model=self.model, text=text)
+            keep_tokens = max_tokens - 3  # Reserve 3 tokens for ellipsis
+            start_tokens = keep_tokens // 2
+            end_tokens = keep_tokens - start_tokens
+
+            start_text = decode(model=self.model, tokens=tokens[:start_tokens])
+            end_text = decode(model=self.model, tokens=tokens[-end_tokens:])
+
+            return f"{start_text} ... {end_text}"
 
     def window_truncate(
         self, lines: list[str], lineno: int, max_tokens: int
@@ -41,17 +85,3 @@ class Truncator:
                     break
 
         return start_line, end_line
-
-    def middle_truncate(self, text: str, max_tokens: int) -> str:
-        tokens = encode(model=self.model, text=text)
-        if len(tokens) <= max_tokens:
-            return text
-
-        keep_tokens = max_tokens - 3  # Reserve 3 tokens for ellipsis
-        start_tokens = keep_tokens // 2
-        end_tokens = keep_tokens - start_tokens
-
-        start_text = decode(model=self.model, tokens=tokens[:start_tokens])
-        end_text = decode(model=self.model, tokens=tokens[-end_tokens:])
-
-        return f"{start_text} ... {end_text}"

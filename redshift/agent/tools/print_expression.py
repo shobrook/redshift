@@ -54,8 +54,8 @@ class PrintExpressionTool(Tool):
         if output.error:
             output_str += output.value
         else:
-            truncated_val = self.truncator.middle_truncate(
-                output.value, self.max_tokens
+            truncated_val = self.truncator.truncate_middle(
+                output.value, self.max_tokens, type="char"
             )
             output_str += f"<expression_value>\n{truncated_val}\n</expression_value>"
 

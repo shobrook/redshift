@@ -165,22 +165,6 @@ def merge_chunks(chunks: list[CodeChunk]) -> list[CodeChunk]:
     return merged_chunks
 
 
-def truncate_chunks(
-    chunks: list[CodeChunk], model: str, max_tokens: int = 8192
-) -> list[CodeChunk]:
-    num_tokens = 0
-    truncated_chunks = []
-    for chunk in chunks:
-        tokens = len(encode(model=model, text=chunk.to_string()))
-        if num_tokens + tokens > max_tokens:
-            break
-
-        num_tokens += tokens
-        truncated_chunks.append(chunk)
-
-    return truncated_chunks
-
-
 def normalize_chunks(chunks: list[CodeChunk]) -> list[CodeChunk]:
     chunks_by_file = group_chunks_by_file(chunks)
     norm_chunks = []
@@ -305,10 +289,10 @@ class GenerateAnswerTool(Tool):
 
         return chunks
 
-    def _format_stack_trace(self) -> str:
+    def _format_stack_trace(self, max_tokens: int = 4096) -> str:
         context_str = "This is the stack trace at the breakpoint (most recent frame at the bottom):\n\n"
         context_str += "<stack_trace>\n"
-        context_str += self.pdb.format_stack_trace()
+        context_str += self.pdb.format_stack_trace(max_tokens=max_tokens)
         context_str += "\n</stack_trace>"
 
         return context_str
@@ -390,7 +374,10 @@ class GenerateAnswerTool(Tool):
 
         return context_str
 
-    def _format_frame_context(self, tool_results: list[any], frame_index: int) -> str:
+    def _format_frame_context(
+        self, tool_results: list[any], frame_index: int, max_tokens: int = 4096
+    ) -> str:
+        # TODO: Token truncation
         tool_results = [
             result
             for result in tool_results
@@ -413,24 +400,29 @@ class GenerateAnswerTool(Tool):
 
         return context_str
 
-    def _format_important_frames(self, tool_results: list[any]) -> str:
+    def _format_important_frames(
+        self, tool_results: list[any], max_tokens: int = 40000
+    ) -> str:
         visited_frames = self._get_visited_frames(tool_results)
+        max_frame_tokens = max_tokens // len(visited_frames)
         context_str = "These are the most important frames in the stack trace:\n\n"
         context_str += "<important_frames>\n"
         context_str += "\n\n".join(
-            self._format_frame_context(tool_results, f_index)
+            self._format_frame_context(tool_results, f_index, max_frame_tokens)
             for f_index in visited_frames
         )
         context_str += "\n</important_frames>"
 
         return context_str
 
-    def _format_code_context(self, tool_results: list[any]) -> str:
+    def _format_code_context(
+        self, tool_results: list[any], max_tokens: int = 20000
+    ) -> str:
         chunks = self._convert_to_chunks(tool_results)
         chunks = merge_chunks(chunks)
-        chunks = truncate_chunks(chunks, self.model)
         chunks = normalize_chunks(chunks)
         chunks = collapse_chunks(chunks)
+        max_chunk_tokens = max_tokens // len(chunks)
 
         context_str = (
             "This is additional context on the codebase and imported packages:\n\n"
@@ -439,7 +431,10 @@ class GenerateAnswerTool(Tool):
         for chunk in chunks:
             context_str += "<file>\n"
             context_str += f"<path>\n{chunk.file.filename}\n</path>\n"
-            context_str += f"<code>\n{chunk.to_string()}\n</code>\n"
+            chunk_str = self.truncator.truncate_end(
+                chunk.to_string(), max_chunk_tokens, type="line"
+            )
+            context_str += f"<code>\n{chunk_str}\n</code>\n"
             context_str += "</file>\n\n"
         context_str = context_str.rstrip("\n")
         context_str += "\n</code_context>"

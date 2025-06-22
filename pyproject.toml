@@ -1,10 +1,37 @@
 [project]
 name = "redshift-cli"
-version = "0.3.0"
-description = "The world's first vibe debugger"
+version = "1.0.1"
+description = "A debugger you can talk to"
+authors = [
+  {name = "Jonathan Shobrook", email = "shobrookj@gmail.com"}
+]
+maintainers = [
+  {name = "Jonathan Shobrook", email = "shobrookj@gmail.com"}
+]
+classifiers = [
+  "Programming Language :: Python"
+]
 readme = "README.md"
-requires-python = ">=3.12"
+license = {file = "LICENSE"}
+requires-python = ">=3.10"
 dependencies = [
     "rich>=14.0.0",
     "saplings>=6.2.0",
 ]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+packages = ["redshift"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["redshift"]
+
+[project.urls]
+homepage = "https://github.com/shobrook/redshift"
+repository = "https://github.com/shobrook/redshift"
+
+[project.scripts]
+redshift = "redshift.__main__:main"

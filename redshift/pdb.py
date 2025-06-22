@@ -109,7 +109,6 @@ class RedshiftPdb(pdb.Pdb):
             yield frame_lineno
 
     def format_stack_trace(self) -> str:
-        # TODO: Token truncation
         # TODO: Optionally enrich the stack trace with serialized locals
 
         stack_trace = ""
@@ -301,5 +300,4 @@ def main():
 
 # TODO: Test post-mortem / exception handling
 # TODO: Test async + multithreading
-# TODO: Make a Truncator class that has differen token-truncation methods
-# TODO: Improve all the tool prompts
+# TODO: Improve all the tool prompts (add instructions for when to call them)

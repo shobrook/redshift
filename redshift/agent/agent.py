@@ -210,13 +210,23 @@ class Agent:
     def __init__(self, pdb, config: Config):
         self.pdb = pdb
         self.config = config
+        self.truncator = Truncator(self.config.agent_model)
         self.printer = Printer(pdb)
         self._history = []
+
+    def _truncate_stack_trace(self, stack_trace: str, max_tokens: int = 4096) -> str:
+        rev_stack_trace = "\n".join(stack_trace.splitlines()[::-1])
+        rev_stack_trace = self.truncator.truncate_end(
+            rev_stack_trace, max_tokens, type="line"
+        )
+        stack_trace = "\n".join(rev_stack_trace.splitlines()[::-1])
+        return stack_trace
 
     def _update_system_prompt(self, *args, **kwargs):
         curr_filename = self.pdb.curframe.f_code.co_filename
         curr_file_code = self.pdb.format_frame_line(self.pdb.curframe)
         stack_trace = self.pdb.format_stack_trace()
+        stack_trace = self._truncate_stack_trace(stack_trace)
 
         return SYSTEM_PROMPT.format(
             stack_trace=stack_trace,
@@ -232,14 +242,13 @@ class Agent:
         self.printer.history = []
 
     def run(self, prompt: str):
-        truncator = Truncator(self.config.agent_model)
         tools = [
             MoveFrameTool(self.pdb, self.printer),
-            PrintExpressionTool(self.pdb, self.printer, truncator),
-            PrintArgsTool(self.pdb, self.printer, truncator),
-            PrintRetvalTool(self.pdb, self.printer, truncator),
-            ReadFileTool(self.pdb, self.printer, truncator),
-            ShowSourceTool(self.pdb, self.printer, truncator),
+            PrintExpressionTool(self.pdb, self.printer, self.truncator),
+            PrintArgsTool(self.pdb, self.printer, self.truncator),
+            PrintRetvalTool(self.pdb, self.printer, self.truncator),
+            ReadFileTool(self.pdb, self.printer, self.truncator),
+            ShowSourceTool(self.pdb, self.printer, self.truncator),
             GenerateAnswerTool(
                 self.pdb,
                 self.printer,

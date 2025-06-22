@@ -7,14 +7,17 @@ from saplings.dtos import Message
 from saplings.abstract import Tool
 from litellm import completion, encode
 
+
 # Local
 try:
+    from redshift.shared.truncator import Truncator
     from redshift.agent.tools.read_file import FileResult
     from redshift.agent.tools.print_args import ArgsResult
     from redshift.agent.tools.show_source import SourceResult
     from redshift.agent.tools.print_retval import RetvalResult
     from redshift.agent.tools.print_expression import ExpressionResult
 except ImportError:
+    from shared.truncator import Truncator
     from agent.tools.read_file import FileResult
     from agent.tools.print_args import ArgsResult
     from agent.tools.show_source import SourceResult
@@ -238,6 +241,7 @@ class GenerateAnswerTool(Tool):
         self.model = model
         self.prompt = prompt
         self.history = [m.to_openai_message() for m in history]
+        self.truncator = Truncator(model)
 
     def _get_visited_frames(self, tool_results: list[any]) -> list[int]:
         frame_indices = {self.pdb._original_curindex}  # Always include original frame
@@ -290,9 +294,16 @@ class GenerateAnswerTool(Tool):
         return chunks
 
     def _format_stack_trace(self, max_tokens: int = 4096) -> str:
+        stack_trace = self.pdb.format_stack_trace()
+        rev_stack_trace = "\n".join(stack_trace.splitlines()[::-1])
+        rev_stack_trace = self.truncator.truncate_end(
+            rev_stack_trace, max_tokens, type="line"
+        )
+        stack_trace = "\n".join(rev_stack_trace.splitlines()[::-1])
+
         context_str = "This is the stack trace at the breakpoint (most recent frame at the bottom):\n\n"
         context_str += "<stack_trace>\n"
-        context_str += self.pdb.format_stack_trace(max_tokens=max_tokens)
+        context_str += stack_trace
         context_str += "\n</stack_trace>"
 
         return context_str
@@ -355,7 +366,9 @@ class GenerateAnswerTool(Tool):
 
         return context_str
 
-    def _format_expression_context(self, tool_results: list[any]) -> str:
+    def _format_expression_context(
+        self, tool_results: list[any], max_tokens: int
+    ) -> str:
         expression_results = [
             result for result in tool_results if isinstance(result, ExpressionResult)
         ]
@@ -365,19 +378,23 @@ class GenerateAnswerTool(Tool):
 
         context_str = "These are the values of relevant variables and expressions in the frame:\n\n"
         context_str += "<variables>\n"
+        expressions_str = ""
         for expr_result in expression_results:
             if expr_result.error:
                 continue
 
-            context_str += f"{expr_result.expression} = {expr_result.value}\n"
-        context_str += "</variables>"
+            expressions_str += f"{expr_result.expression} = {expr_result.value}\n"
+        expressions_str = self.truncator.truncate_middle(
+            expressions_str, max_tokens, type="line"
+        )
+        expressions_str = expressions_str.rstrip("\n")
+        context_str += f"{expressions_str}\n</variables>"
 
         return context_str
 
     def _format_frame_context(
         self, tool_results: list[any], frame_index: int, max_tokens: int = 4096
     ) -> str:
-        # TODO: Token truncation
         tool_results = [
             result
             for result in tool_results
@@ -386,7 +403,7 @@ class GenerateAnswerTool(Tool):
         stack_entry = self._format_stack_entry(frame_index)
         file_context = self._format_file_context(frame_index)
         function_context = self._format_function_context(frame_index, tool_results)
-        expression_context = self._format_expression_context(tool_results)
+        expression_context = self._format_expression_context(tool_results, max_tokens)
 
         context_str = f"<frame>\n"
         context_str += stack_entry
@@ -404,6 +421,9 @@ class GenerateAnswerTool(Tool):
         self, tool_results: list[any], max_tokens: int = 40000
     ) -> str:
         visited_frames = self._get_visited_frames(tool_results)
+        if not visited_frames:
+            return ""
+
         max_frame_tokens = max_tokens // len(visited_frames)
         context_str = "These are the most important frames in the stack trace:\n\n"
         context_str += "<important_frames>\n"
@@ -422,6 +442,10 @@ class GenerateAnswerTool(Tool):
         chunks = merge_chunks(chunks)
         chunks = normalize_chunks(chunks)
         chunks = collapse_chunks(chunks)
+
+        if not chunks:
+            return ""
+
         max_chunk_tokens = max_tokens // len(chunks)
 
         context_str = (

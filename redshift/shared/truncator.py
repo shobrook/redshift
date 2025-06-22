@@ -42,8 +42,34 @@ class Truncator:
             return text
 
         if type == "line":
-            # TODO: Implement
-            return text
+            lines = text.splitlines()
+            if len(lines) <= 2:
+                return self.truncate_middle(text, max_tokens, type="char")
+
+            token_counts = [len(encode(model=self.model, text=line)) for line in lines]
+            kept_indices = {0, len(lines) - 1}
+            tokens_used = token_counts[0] + token_counts[-1]
+
+            candidate_order = []
+            left, right = 1, len(lines) - 2
+            while left <= right:
+                candidate_order.append(left)
+                if left != right:
+                    candidate_order.append(right)
+                left += 1
+                right -= 1
+
+            for idx in candidate_order:
+                if tokens_used + token_counts[idx] <= max_tokens:
+                    kept_indices.add(idx)
+                    tokens_used += token_counts[idx]
+
+            final_lines = []
+            for i, idx in enumerate(sorted(kept_indices)):
+                if i > 0 and idx != sorted(kept_indices)[i - 1] + 1:
+                    final_lines.append("...")
+                final_lines.append(lines[idx])
+            return "\n".join(final_lines)
         elif type == "char":
             tokens = encode(model=self.model, text=text)
             keep_tokens = max_tokens - 3  # Reserve 3 tokens for ellipsis

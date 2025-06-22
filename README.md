@@ -1,12 +1,14 @@
 # redshift
 
-Redshift is a vibe debugger for Python. When a breakpoint is hit, you can ask questions like:
+Redshift is a Python debugger with an LLM inside. When a breakpoint is hit, you can ask questions like:
 
 - "Why is this function returning null?"
 - "How many items in `array` are strings?"
 - "Which condition made the loop break?"
 
-An agent will navigate the call stack, inspect variables, and look at your code to figure out an answer. Think of it like Claude Code but for debugging.
+An agent will navigate the call stack, inspect variables, and look at your code to figure out an answer. Think of this as "vibe debugging," where you investigate just by talking.
+
+<!--Think of it like Claude Code but for debugging.-->
 
 ![Demo](./demo.gif)
 

@@ -272,7 +272,6 @@ class Agent:
         output = messages[-1].raw_output
         if not was_tool_called(messages, "none"):
             messages = self._history + messages
-            # TODO: Fix these synchronous methods
             tool_call = agent.call_tool("none", messages)
             tool_result = agent.run_tool(tool_call, messages)
             output = tool_result.raw_output

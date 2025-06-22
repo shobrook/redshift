@@ -6,5 +6,5 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "rich>=14.0.0",
-    "saplings>=6.1.0",
+    "saplings>=6.2.0",
 ]

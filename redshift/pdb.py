@@ -10,9 +10,9 @@ try:
     from redshift.config import Config
     from redshift.shared.is_internal_frame import is_internal_frame
 except ImportError:
-    from agent import Agent
-    from config import Config
-    from shared.is_internal_frame import is_internal_frame
+    from .agent import Agent
+    from .config import Config
+    from .shared.is_internal_frame import is_internal_frame
 
 
 class RedshiftPdb(pdb.Pdb):
@@ -232,4 +232,3 @@ def pm():
 
 # TODO: Test post-mortem / exception handling
 # TODO: Test async + multithreading
-# TODO: Improve all the tool prompts (add instructions for when to call them)

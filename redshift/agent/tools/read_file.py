@@ -5,10 +5,13 @@ from collections import namedtuple
 # Third party
 from saplings.dtos import Message
 from saplings.abstract import Tool
-from litellm import encode
 
 
 FileResult = namedtuple("FileResult", ["chunks", "filename", "frame_index"])
+
+TOOL_DESCRIPTION = """Returns source code for the current file. Similar to the pdb 'list' command. \
+Use this to understand the code that's being executed."""
+# TODO: Better "Use this"
 
 
 def get_filename(frame) -> str:
@@ -24,13 +27,13 @@ class ReadFileTool(Tool):
     def __init__(self, pdb, printer, truncator, max_tokens: int = 4096):
         # Base attributes
         self.name = "read"
-        self.description = "Returns source code for the current file. Similar to the pdb 'list' command, except it returns as many lines as possible."
+        self.description = TOOL_DESCRIPTION
         self.parameters = {
             "type": "object",
             "properties": {
                 "explanation": {
                     "type": "string",
-                    "description": "One sentence explanation as to why this tool is being used, and how it contributes to the goal.",
+                    "description": "Short, one-sentence explanation of why this tool is being used, and how it contributes to the goal.",
                 },
             },
             "required": ["explanation"],

@@ -16,22 +16,24 @@ ExpressionResult = namedtuple(
     "ExpressionResult", ["expression", "value", "frame_index", "error"]
 )
 
+TOOL_DESCRIPTION = """Returns the value of a variable or expression. Equivalent to the pdb 'print' command."""
+
 
 class PrintExpressionTool(Tool):
     def __init__(self, pdb, printer, truncator, max_tokens: int = 4096):
         # Base attributes
         self.name = "expression"
-        self.description = "Returns the value of a variable or expression. Equivalent to the pdb 'print' command."
+        self.description = TOOL_DESCRIPTION
         self.parameters = {
             "type": "object",
             "properties": {
                 "explanation": {
                     "type": "string",
-                    "description": "One sentence explanation as to why this tool is being used, and how it contributes to the goal.",
+                    "description": "Short, one-sentence explanation of why this tool is being used, and how it contributes to the goal.",
                 },
                 "expression": {
                     "type": "string",
-                    "description": "Variable or expression to get the value of. E.g. 'var_name' or 'self.attribute'. Variables must be within the scope of the current frame.",
+                    "description": "Variable or expression to get the value of. E.g. 'var_name' or 'self.attribute'. Variables MUST be defined in the scope of the current frame, or you will get an error.",
                 },
             },
             "required": ["explanation", "expression"],

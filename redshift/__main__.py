@@ -1,6 +1,5 @@
 # Standard library
 import sys
-import pdb
 import traceback
 
 # Local
@@ -8,7 +7,7 @@ try:
     from redshift.config import Config
     from redshift.pdb import RedshiftPdb
 except ImportError:
-    from config import Config
+    from .config import Config
     from .pdb import RedshiftPdb
 
 

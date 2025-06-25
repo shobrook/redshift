@@ -11,18 +11,22 @@ SourceResult = namedtuple(
     "SourceResult", ["object", "filename", "lineno", "lines", "frame_index"]
 )
 
+TOOL_DESCRIPTION = """Returns the source code for an object. This can be a variable, function, class, method, field, attribute, etc. Equivalent to the pdb 'source' command. \
+Use this to see the source code for any function, class, method, or reference (e.g. `foo.bar`) in the current frame. \
+This is useful for understanding the code that led to the current breakpoint."""
+
 
 class ShowSourceTool(Tool):
     def __init__(self, pdb, printer, truncator, max_tokens: int = 4096):
         # Base attributes
         self.name = "source"
-        self.description = "Returns the source code for an object. This can be a variable, function, class, method, field, attribute, etc. Equivalent to the pdb 'source' command."
+        self.description = TOOL_DESCRIPTION
         self.parameters = {
             "type": "object",
             "properties": {
                 "explanation": {
                     "type": "string",
-                    "description": "One sentence explanation as to why this tool is being used, and how it contributes to the goal.",
+                    "description": "Short, one-sentence explanation of why this tool is being used, and how it contributes to the goal.",
                 },
                 "object": {"type": "string", "description": "The name of the object."},
                 # TODO: Maybe we can make an enum of all available objects (symbols) in the current scope?

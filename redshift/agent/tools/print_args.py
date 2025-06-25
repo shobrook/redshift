@@ -15,18 +15,20 @@ except ImportError:
 
 ArgsResult = namedtuple("ArgsResult", ["name_to_repr", "frame_index"])
 
+TOOL_DESCRIPTION = """Returns the argument list of the current function. Equivalent to the pdb 'args' command."""
+
 
 class PrintArgsTool(Tool):
     def __init__(self, pdb, printer, truncator, max_tokens: int = 4096):
         # Base attributes
         self.name = "args"
-        self.description = "Returns the argument list of the current function. Equivalent to the pdb 'args' command."
+        self.description = TOOL_DESCRIPTION
         self.parameters = {
             "type": "object",
             "properties": {
                 "explanation": {
                     "type": "string",
-                    "description": "One sentence explanation as to why this tool is being used, and how it contributes to the goal.",
+                    "description": "Short, one-sentence explanation of why this tool is being used, and how it contributes to the goal.",
                 },
             },
             "required": ["explanation"],

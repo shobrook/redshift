@@ -14,18 +14,20 @@ except ImportError:
 
 RetvalResult = namedtuple("RetvalResult", ["value", "frame_index"])
 
+TOOL_DESCRIPTION = """Returns the return value for the last return of the current function. Equivalent to the pdb 'retval' command."""
+
 
 class PrintRetvalTool(Tool):
     def __init__(self, pdb, printer, truncator, max_tokens: int = 4096):
         # Base attributes
         self.name = "retval"
-        self.description = "Returns the return value for the last return of the current function. Equivalent to the pdb 'retval' command."
+        self.description = TOOL_DESCRIPTION
         self.parameters = {
             "type": "object",
             "properties": {
                 "explanation": {
                     "type": "string",
-                    "description": "One sentence explanation as to why this tool is being used, and how it contributes to the goal.",
+                    "description": "Short, one-sentence explanation of why this tool is being used, and how it contributes to the goal.",
                 },
             },
             "required": ["explanation"],

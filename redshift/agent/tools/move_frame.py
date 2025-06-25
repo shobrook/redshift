@@ -17,17 +17,22 @@ MoveFrameResult = namedtuple(
 )
 
 
+TOOL_DESCRIPTION = """Moves the current frame up or down the stack trace. Equivalent to the pdb 'up' or 'down' command. \
+Use this to inspect variables in calling functions, trace data flow through the call chain, and understand \
+execution context that led to the current state."""
+
+
 class MoveFrameTool(Tool):
     def __init__(self, pdb, printer):
         # Base attributes
         self.name = "move"
-        self.description = "Moves the current frame up or down the stack trace. Equivalent to the pdb 'up' or 'down' command."
+        self.description = TOOL_DESCRIPTION
         self.parameters = {
             "type": "object",
             "properties": {
                 "explanation": {
                     "type": "string",
-                    "description": "One sentence explanation as to why this tool is being used, and how it contributes to the goal.",
+                    "description": "Short, one-sentence explanation of why this tool is being used, and how it contributes to the goal.",
                 },
                 "direction": {
                     "type": "string",

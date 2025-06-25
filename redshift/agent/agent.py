@@ -26,7 +26,7 @@ try:
     from redshift.shared.truncator import Truncator
 except ImportError:
     from ..config import Config
-    from agent.tools import (
+    from .tools import (
         MoveFrameTool,
         PrintExpressionTool,
         PrintArgsTool,
@@ -35,7 +35,7 @@ except ImportError:
         ShowSourceTool,
         GenerateAnswerTool,
     )
-    from shared.truncator import Truncator
+    from ..shared.truncator import Truncator
 
 
 #########
@@ -53,15 +53,11 @@ Call functions.none when you have enough information to answer.
 You have tools (functions) that allow you to operate the Python debugger (pdb). \
 Follow these rules when calling tools:
 - DO NOT call a tool that you've used before with the same arguments, unless you're in a different frame.
-- DO NOT use functions.file to get the definition of a function or class. Use functions.source instead.
+- DO NOT use functions.file to get source code (e.g. the definition of a function or class). Use functions.source instead.
 - If the user is referring to, or asking for, information that is in your history, call functions.none.
 - If after attempting to gather information you are still unsure how to answer the query, call functions.none.
 - If the query is a greeting, or neither a question nor an instruction, call functions.none.
 - If the output of a function is empty or an error message, try calling the function again with DIFFERENT arguments OR try calling a different function.
-- You MUST call functions.expression at least once. Use it to get the value of a variable or expression that you believe is relevant to the user's query.
-- Call functions.args or functions.retval to understand the current state of the function call.
-- Call functions.source or functions.file to get context on relevant code (e.g. function definitions, dependencies, etc.).
-- Call functions.move if you need to inspect a different function call in the stack trace.
 - Call functions.none when you have enough information to answer the user's query.
 </tool_calling>
 

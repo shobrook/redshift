@@ -6,9 +6,7 @@ Redshift is a Python debugger with an LLM inside. When a breakpoint is hit, you 
 - "How many items in `array` are strings?"
 - "Which condition made the loop break?"
 
-An agent will navigate the call stack, inspect variables, and look at your code to figure out an answer. Think of this as _vibe debugging._ You can diagnose issues just by talking.
-
-<!--Think of it like Claude Code but for debugging.-->
+An agent will navigate the call stack, inspect variables, and look at your code to figure out an answer. Think of this as _vibe debugging_ –– you can steer the debugger using prompts.
 
 ![Demo](./demo.gif)
 

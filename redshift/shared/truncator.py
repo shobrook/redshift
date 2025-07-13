@@ -81,7 +81,7 @@ class Truncator:
 
             return f"{start_text} ... {end_text}"
 
-    def window_truncate(
+    def truncate_window(
         self, lines: list[str], lineno: int, max_tokens: int
     ) -> tuple[int, int]:
         if len(encode(model=self.model, text="\n".join(lines))) <= max_tokens:

@@ -1,4 +1,5 @@
 # Standard library
+import sys
 import time
 import threading
 import multiprocessing
@@ -6,6 +7,7 @@ import multiprocessing
 # Third party
 from rich.live import Live
 from rich.text import Text
+from litellm import completion
 from rich.console import Console
 from rich.markdown import Markdown
 from saplings.dtos import Message
@@ -43,7 +45,7 @@ except ImportError:
 #########
 
 
-SYSTEM_PROMPT = """You are an AI assistant that helps users debug Python code. \
+ASK_SYSTEM_PROMPT = """You are an AI assistant that helps users debug Python code. \
 You are activated when the user's program throws an exception or hits a breakpoint. \
 You will receive a query from the user about the state of their program at that breakpoint. \
 Your job is to choose the best action. Call tools to find information that will help answer the user's query. \
@@ -93,6 +95,34 @@ This is your position in the file associated with the current frame:
 Use this information to understand the current frame you're in as you're calling tools \
 to operate the debugger."""
 
+RUN_SYSTEM_PROMPT = """You are an AI assistant that runs inside the Python debugger, pdb. \
+You are activated when a breakpoint is hit. Your task is to generate code that will be executed at that breakpoint. \
+You will be given the file the breakpoint is defined in, as well as a prompt for what code to generate. \
+Additionally, you will have context on the stack trace and namespace at the breakpoint. \
+Use this context to generate code that satisfies the user's prompt.
+
+Output your code between markdown code tags with the code type being python. It should look like this:
+
+```python
+Code goes here...
+```
+
+You MUST output ONLY code. 
+
+--
+
+This is the stack trace at the breakpoint (most recent frame at the bottom):
+
+<stack_trace>
+{stack_trace}
+</stack_trace>
+
+And these are the local and global variables currently defined in the namespace:
+
+<variables>
+{variables}
+</variables>"""
+
 
 class Printer(object):
     RED = "\033[31m"
@@ -141,6 +171,18 @@ class Printer(object):
         if self._thinking_thread and self._thinking_thread.is_alive():
             self._thinking_thread.join(timeout=1.0)
 
+    def _print_markdown(self, markdown: str):
+        console = Console()
+        markdown = Markdown(
+            markdown,
+            code_theme="monokai",
+            inline_code_lexer="python",
+            inline_code_theme="monokai",
+        )
+        console.print()
+        console.print(markdown)
+        console.print()
+
     def tool_call(self, tool_name: str, value: str | list[str] = "", arg: str = ""):
         message = self.MESSAGES[tool_name].format(arg=arg)
 
@@ -165,21 +207,14 @@ class Printer(object):
 
         self.history.append(tool_name)
 
-    def final_output(self, response: str):
+    def ask_output(self, response: str):
         self._stop_thinking_animation()
         time_taken = f"{time.time() - self._thinking_start_time:.2f}"
         self.pdb.message(f"{self.RED}└──{self.RESET} Thought for {time_taken} seconds")
+        self._print_markdown(response)
 
-        console = Console()
-        markdown = Markdown(
-            response,
-            code_theme="monokai",
-            inline_code_lexer="python",
-            inline_code_theme="monokai",
-        )
-        console.print()
-        console.print(markdown)
-        console.print()
+    def run_output(self, response: str):
+        self._print_markdown(f"```python\n{response}\n```")
 
 
 def was_tool_called(messages: list[Message], tool_name: str) -> bool:
@@ -197,6 +232,16 @@ def was_tool_called(messages: list[Message], tool_name: str) -> bool:
     return False
 
 
+def parse_code(output: str) -> str:
+    chunks = output.split("```")
+    if len(chunks) <= 1:
+        return output
+
+    code = "\n".join(chunks[1].split("\n")[1:])
+    code = code.split("```")[0].strip()
+    return code
+
+
 ######
 # MAIN
 ######
@@ -210,21 +255,12 @@ class Agent:
         self.printer = Printer(pdb)
         self._history = []
 
-    def _truncate_stack_trace(self, stack_trace: str, max_tokens: int = 4096) -> str:
-        rev_stack_trace = "\n".join(stack_trace.splitlines()[::-1])
-        rev_stack_trace = self.truncator.truncate_end(
-            rev_stack_trace, max_tokens, type="line"
-        )
-        stack_trace = "\n".join(rev_stack_trace.splitlines()[::-1])
-        return stack_trace
-
     def _update_system_prompt(self, *args, **kwargs):
         curr_filename = self.pdb.curframe.f_code.co_filename
         curr_file_code = self.pdb.format_frame_line(self.pdb.curframe)
-        stack_trace = self.pdb.format_stack_trace()
-        stack_trace = self._truncate_stack_trace(stack_trace)
+        stack_trace = self.pdb.format_stack_trace(self.config.agent_model)
 
-        return SYSTEM_PROMPT.format(
+        return ASK_SYSTEM_PROMPT.format(
             stack_trace=stack_trace,
             curr_frame=self.pdb.format_stack_entry(
                 self.pdb.stack[self.pdb.curindex], "\n-> "
@@ -237,7 +273,7 @@ class Agent:
         self._history = []
         self.printer.history = []
 
-    def run(self, prompt: str):
+    def ask(self, prompt: str) -> str:
         tools = [
             MoveFrameTool(self.pdb, self.printer),
             PrintExpressionTool(self.pdb, self.printer, self.truncator),
@@ -257,7 +293,7 @@ class Agent:
         agent = COTAgent(
             tools,
             model,
-            SYSTEM_PROMPT,
+            ASK_SYSTEM_PROMPT,
             tool_choice="required",
             max_depth=self.config.max_iters,
             verbose=False,
@@ -275,3 +311,60 @@ class Agent:
         self._history += [Message.user(prompt), Message.assistant(output)]
         self.printer.history = []
         return output
+
+    def run(self, prompt: str) -> str:
+        # TODO: This method shouldn't be part of this class since it's not agentic
+
+        # Build context
+        vars_str = self.pdb.format_variables(
+            self.config.response_model, max_tokens=10000
+        )
+        stack_trace = self.pdb.format_stack_trace(
+            self.config.response_model, max_tokens=1000
+        )
+        file_lines = self.pdb.get_curr_file_lines()
+        curr_line = self.pdb.curframe.f_lineno
+        start, end = self.truncator.truncate_window(
+            file_lines, curr_line, max_tokens=20000
+        )
+        curr_file = self.pdb.format_lines(
+            file_lines[start - 1 : end], start, frame=self.pdb.curframe
+        )
+        lineno = self.pdb.curframe.f_lineno
+        bp_window = self.pdb.format_frame_line(self.pdb.curframe)
+
+        adj_prompt = "This is the file the breakpoint is defined in:\n\n"
+        adj_prompt += f"<file>\n{curr_file}\n</file>\n\n"
+        adj_prompt += (
+            f"The breakpoint is specifically on line {lineno} (marked by ->). "
+        )
+        adj_prompt += f"The code you generate will execute at this line:\n\n"
+        adj_prompt += f"<breakpoint>\n{bp_window}\n</breakpoint>\n\n"
+        adj_prompt += f"--\n\nThis is the code generation prompt:\n\n"
+        adj_prompt += f"<prompt>\n{prompt}\n</prompt>"
+
+        # Generate code
+        messages = [
+            {
+                "role": "system",
+                "content": RUN_SYSTEM_PROMPT.format(
+                    stack_trace=stack_trace,
+                    variables=vars_str,
+                ),
+            },
+            {"role": "user", "content": adj_prompt},
+        ]
+        response = completion(
+            model=self.config.response_model,
+            messages=messages,
+            drop_params=True,
+        )
+        response = response.choices[0].message.content
+        code = parse_code(response)
+
+        # Execute code
+        self.printer.run_output(code)
+        if input("Execute code? (Y/n)").strip().lower() in ["y", "yes", ""]:
+            self.pdb.execute_code(code)
+
+        # TODO: Enable follow-ups

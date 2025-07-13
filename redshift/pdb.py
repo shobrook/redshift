@@ -1,6 +1,7 @@
 # Standard library
 import pdb
 import sys
+import json
 import linecache
 from typing import Generator
 
@@ -8,10 +9,14 @@ from typing import Generator
 try:
     from redshift.agent import Agent
     from redshift.config import Config
+    from redshift.shared.truncator import Truncator
+    from redshift.shared.serializers import serialize_vars
     from redshift.shared.is_internal_frame import is_internal_frame
 except ImportError:
     from .agent import Agent
     from .config import Config
+    from .shared.truncator import Truncator
+    from .shared.serializers import serialize_vars
     from .shared.is_internal_frame import is_internal_frame
 
 
@@ -107,9 +112,32 @@ class RedshiftPdb(pdb.Pdb):
 
             yield frame_lineno
 
-    def format_stack_trace(self) -> str:
-        # TODO: Optionally enrich the stack trace with serialized locals
+    def format_variables(self, model: str, max_tokens: int = 4096) -> str:
+        locals_ = self.curframe_locals
+        locals_ = serialize_vars(locals_)
+        locals_ = json.loads(locals_)
 
+        globals_ = self.curframe.f_globals
+        globals_ = serialize_vars(globals_)
+        globals_ = json.loads(globals_)
+
+        truncator = Truncator(model)
+        tokens_per_val = max_tokens // (len(locals_) + len(globals_))
+
+        formatted_str = "<globals>\n"
+        for key, value in globals_.items():
+            value = truncator.truncate_middle(value, tokens_per_val)
+            formatted_str += f"{key} = {value}\n"
+        formatted_str += "</globals>\n"
+        formatted_str += "<locals>\n"
+        for key, value in locals_.items():
+            value = truncator.truncate_middle(value, tokens_per_val)
+            formatted_str += f"{key} = {value}\n"
+        formatted_str += "</locals>\n"
+
+        return formatted_str
+
+    def format_stack_trace(self, model: str, max_tokens: int = 4096) -> str:
         stack_trace = ""
         hidden_count = 0
         for frame_lineno in self.stack:
@@ -142,6 +170,15 @@ class RedshiftPdb(pdb.Pdb):
             stack_trace += f"[... {hidden_count} hidden frame{plural} ...]"
 
         stack_trace = stack_trace.rstrip()
+
+        # Truncation
+        truncator = Truncator(model)
+        rev_stack_trace = "\n".join(stack_trace.splitlines()[::-1])
+        rev_stack_trace = truncator.truncate_end(
+            rev_stack_trace, max_tokens, type="line"
+        )
+        stack_trace = "\n".join(rev_stack_trace.splitlines()[::-1])
+
         return stack_trace
 
     def format_frame_line(self, frame, window: int = 5) -> str:
@@ -156,9 +193,41 @@ class RedshiftPdb(pdb.Pdb):
         snapshot = self.format_lines(lines[first - 1 : last], first, breaklist, frame)
         return snapshot
 
+    def execute_code(self, code: str):
+        locals = self.curframe_locals
+        globals = self.curframe.f_globals
+
+        try:
+            code = compile(code, "<stdin>", "exec")
+            save_stdout = sys.stdout
+            save_stdin = sys.stdin
+            save_displayhook = sys.displayhook
+            try:
+                sys.stdin = self.stdin
+                sys.stdout = self.stdout
+                sys.displayhook = self.displayhook
+                exec(code, globals, locals)
+            finally:
+                sys.stdout = save_stdout
+                sys.stdin = save_stdin
+                sys.displayhook = save_displayhook
+        except:
+            self._error_exc()
+
+    def get_curr_file_lines(self) -> list[str]:
+        filename = self.curframe.f_code.co_filename
+        if filename.startswith("<frozen"):
+            tmp = self.curframe.f_globals.get("__file__")
+            if isinstance(tmp, str):
+                filename = tmp
+
+        lines = linecache.getlines(filename, self.curframe.f_globals)
+        return lines
+
     ## Overloads ##
 
     def default(self, line):
+        # TODO: Wrong overload
         if not self._is_follow_up(line):
             self._agent.reset()
             self._last_command = None
@@ -175,15 +244,41 @@ class RedshiftPdb(pdb.Pdb):
     ## New commands ##
 
     def do_ask(self, arg: str):
+        """ask question
+
+        Ask a question about the state of the program. An LLM will steer the
+        debugger to find the answer to your question.
+
+        Example: `ask why is x null?`
+        """
+
         if not self.curframe:
             self.message("You can only use redshift if a frame is available")
             return
 
         self._save_state()
         prompt = self._build_query_prompt(arg)
-        self._agent.run(prompt)
+        self._agent.ask(prompt)
         self._last_command = "ask"
         self._restore_state()
+
+    def do_run(self, arg: str):
+        """generate prompt
+
+        Generate and execute code in the context of the current stack frame.
+        Generated code is based off the prompt you provide and will not be
+        executed without your approval.
+
+        Example: `generate visualize the training loss using matplotlib`
+        """
+
+        if not self.curframe:
+            self.message("You can only use redshift if a frame is available")
+            return
+
+        prompt = arg.strip()
+        self._agent.run(prompt)
+        # TODO: Handle follow-ups
 
 
 def run(statement, globals=None, locals=None):

@@ -3,9 +3,9 @@ import linecache
 from collections import defaultdict
 
 # Third party
+from litellm import completion
 from saplings.dtos import Message
 from saplings.abstract import Tool
-from litellm import completion, encode
 
 
 # Local
@@ -294,13 +294,7 @@ class GenerateAnswerTool(Tool):
         return chunks
 
     def _format_stack_trace(self, max_tokens: int = 4096) -> str:
-        stack_trace = self.pdb.format_stack_trace()
-        rev_stack_trace = "\n".join(stack_trace.splitlines()[::-1])
-        rev_stack_trace = self.truncator.truncate_end(
-            rev_stack_trace, max_tokens, type="line"
-        )
-        stack_trace = "\n".join(rev_stack_trace.splitlines()[::-1])
-
+        stack_trace = self.pdb.format_stack_trace(self.model, max_tokens)
         context_str = "This is the stack trace at the breakpoint (most recent frame at the bottom):\n\n"
         context_str += "<stack_trace>\n"
         context_str += stack_trace
@@ -496,6 +490,6 @@ class GenerateAnswerTool(Tool):
             drop_params=True,
         )
         response = response.choices[0].message.content
-        self.printer.final_output(response)
+        self.printer.ask_output(response)
 
         return response

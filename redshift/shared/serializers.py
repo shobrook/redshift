@@ -22,9 +22,14 @@ def filter_builtins(locals_dict: Dict[str, Any]) -> Dict[str, Any]:
     default_builtins = default_locals["__builtins__"]
 
     if "__builtins__" in locals_dict:
+        curr_builtins = locals_dict["__builtins__"]
+        curr_builtins = (
+            curr_builtins if isinstance(curr_builtins, dict) else vars(curr_builtins)
+        )
+
         locals_dict["__builtins__"] = {
             k: v
-            for k, v in locals_dict["__builtins__"].items()
+            for k, v in curr_builtins.items()
             if k not in default_builtins or default_builtins[k] is not v
         }
         if not locals_dict["__builtins__"]:
@@ -236,10 +241,3 @@ def serialize_vars(vars_dict: dict[str, object], use_default: bool = True) -> st
 def serialize_call_args(f_code, f_locals, use_default: bool = True) -> str:
     call_args = get_call_args(f_code, f_locals)
     return serialize_vars(call_args, use_default)
-
-
-def serialize_retval(value: object, use_default: bool = True) -> str:
-    if use_default:
-        return default_serialize_object(value)
-
-    return serialize_object(value, visited=set(), level=0)

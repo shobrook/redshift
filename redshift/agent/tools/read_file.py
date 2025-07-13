@@ -86,12 +86,12 @@ class ReadFileTool(Tool):
             if isinstance(tmp, str):
                 filename = tmp
 
-        lines = linecache.getlines(filename, self.pdb.curframe.f_globals)
+        lines = self.pdb.get_curr_file_lines()
         curr_line = self.pdb.curframe.f_lineno
 
         # NOTE: We use chunks so that in the future we can more intelligently
         # truncate a file (e.g. ensuring certain symbols/lines are included)
-        start_line, end_line = self.truncator.window_truncate(
+        start_line, end_line = self.truncator.truncate_window(
             lines, curr_line, self.max_tokens
         )
         chunks = [(start_line, end_line)]

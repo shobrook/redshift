@@ -20,13 +20,13 @@ _`ask PROMPT`_
 
 Ask a question about the state of your program. An agent will operate the debugger to investigate and figure out an answer. Save yourself the busywork of digging into the stack trace.
 
+_`run PROMPT`_
+
+(Coming soon) Generate and execute code in the context of the current frame. Generated code is based off the prompt you provide and will not be executed without your approval.
+
 _`fix [PROMPT]`_
 
 (Coming soon) When an exception is thrown, run this to find the root cause of the issue and get a fix. The output will be a patch that you can apply to your codebase. You can provide an optional prompt describing the issue.
-
-_`run PROMPT`_
-
-(Coming soon) Generates and executes code in the context of the current scope. It'll run in an interpreter whose namespace is a direct copy of the program state at the current line of code. Generated code will not be executed without your approval.
 
 ## Installation
 
@@ -41,8 +41,6 @@ After installing, you need connect to Anthropic. Get an API key [here,](https://
 ```
 
 You can also use [OpenAI](https://platform.openai.com/api-keys) or other providers, including local ones like ollama. Redshift wraps LiteLLM, which [supports over 100 models.](https://docs.litellm.ai/docs/providers)
-
-> Note: This is still experimental and likely to be buggy. Stable release coming very soon.
 
 ## Usage
 

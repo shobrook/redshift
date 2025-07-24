@@ -1,5 +1,4 @@
 # Standard library
-import sys
 import time
 import threading
 import multiprocessing
@@ -18,6 +17,7 @@ try:
     from redshift.config import Config
     from redshift.agent.tools import (
         MoveFrameTool,
+        PrintNamesTool,
         PrintExpressionTool,
         PrintArgsTool,
         PrintRetvalTool,
@@ -27,9 +27,9 @@ try:
     )
     from redshift.shared.truncator import Truncator
 except ImportError:
-    from ..config import Config
     from .tools import (
         MoveFrameTool,
+        PrintNamesTool,
         PrintExpressionTool,
         PrintArgsTool,
         PrintRetvalTool,
@@ -37,6 +37,7 @@ except ImportError:
         ShowSourceTool,
         GenerateAnswerTool,
     )
+    from ..config import Config
     from ..shared.truncator import Truncator
 
 
@@ -136,6 +137,7 @@ class Printer(object):
         "expression": "Evaluating expression",
         "semantic": "Searching {arg}",
         "read": "Reading file",
+        "names": "Checking namespace",
         "none": "Thinking",
     }
 
@@ -192,7 +194,7 @@ class Printer(object):
             self._animate_thinking()
             return
 
-        if not self.history or tool_name == "move":
+        if not self.history or tool_name in ["move", "names"]:
             self.pdb.message(f"{self.RED}│{self.RESET}")
             self.pdb.message(f"{self.RED}├──{self.RESET} {message}")
         elif self.history[-1] != tool_name:
@@ -201,6 +203,9 @@ class Printer(object):
 
         values = [value] if isinstance(value, str) else value
         for value in values:
+            if not value:
+                continue
+
             self.pdb.message(
                 f"{self.RED}│   {self.RESET}{self.GREY}{value}{self.RESET}"
             )
@@ -276,6 +281,7 @@ class Agent:
     def ask(self, prompt: str) -> str:
         tools = [
             MoveFrameTool(self.pdb, self.printer),
+            PrintNamesTool(self.pdb, self.printer, self.truncator),
             PrintExpressionTool(self.pdb, self.printer, self.truncator),
             PrintArgsTool(self.pdb, self.printer, self.truncator),
             PrintRetvalTool(self.pdb, self.printer, self.truncator),
@@ -366,5 +372,3 @@ class Agent:
         self.printer.run_output(code)
         if input("Execute code? (Y/n)").strip().lower() in ["y", "yes", ""]:
             self.pdb.execute_code(code)
-
-        # TODO: Enable follow-ups

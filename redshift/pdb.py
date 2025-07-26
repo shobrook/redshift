@@ -23,11 +23,11 @@ except ImportError:
 class RedshiftPdb(pdb.Pdb):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.prompt = "\033[31m(Redshift)\033[0m "
-        self.config = (
+        self._prompt = "Redshift"
+        self.redshift_config = (
             Config.from_env() if kwargs.get("config") is None else kwargs["config"]
         )
-        self._agent = Agent(self, self.config)
+        self._agent = Agent(self, self.redshift_config)
         self._last_command = None  # Used to detect follow-ups
         # TODO: Capture command history; use as context for agent
         # TODO: Capture stdin; use as context for agent
@@ -106,7 +106,7 @@ class RedshiftPdb(pdb.Pdb):
     def iter_stack(self) -> Generator[tuple[any, int], None, None]:
         for frame_lineno in self.stack:
             frame, _ = frame_lineno
-            if self.config.hide_external_frames:
+            if self.redshift_config.hide_external_frames:
                 if not is_internal_frame(frame):
                     continue
 
@@ -142,8 +142,9 @@ class RedshiftPdb(pdb.Pdb):
         hidden_count = 0
         for frame_lineno in self.stack:
             frame, _ = frame_lineno
-            is_hidden = self.config.hide_external_frames and not is_internal_frame(
-                frame
+            is_hidden = (
+                self.redshift_config.hide_external_frames
+                and not is_internal_frame(frame)
             )
 
             if is_hidden:
@@ -226,6 +227,14 @@ class RedshiftPdb(pdb.Pdb):
 
     ## Overloads ##
 
+    @property
+    def prompt(self):
+        return f"\001\033[31m\002({self._prompt})\001\033[0m\002 "
+
+    @prompt.setter
+    def prompt(self, value):
+        self._prompt = value
+
     def default(self, line):
         # TODO: Wrong overload
         if not self._is_follow_up(line):
@@ -263,13 +272,13 @@ class RedshiftPdb(pdb.Pdb):
         self._restore_state()
 
     def do_run(self, arg: str):
-        """generate prompt
+        """run prompt
 
         Generate and execute code in the context of the current stack frame.
         Generated code is based off the prompt you provide and will not be
         executed without your approval.
 
-        Example: `generate visualize the training loss using matplotlib`
+        Example: `run visualize the training loss using matplotlib`
         """
 
         if not self.curframe:
@@ -279,6 +288,25 @@ class RedshiftPdb(pdb.Pdb):
         prompt = arg.strip()
         self._agent.run(prompt)
         # TODO: Handle follow-ups
+
+    def do_fix(self, arg: str):
+        """fix [prompt]
+
+        Fix an exception or a self-described issue. An LLM will find the root
+        cause of the issue and generate a fix. Returns a patch that you can
+        apply to your codebase.
+
+        Examples:
+        - `fix` (when an exception is thrown)
+        - `fix my_var is null when it should be a string`
+        """
+
+        if not self.curframe:
+            self.message("You can only use redshift if a frame is available")
+            return
+
+        prompt = arg.strip()
+        self._agent.fix(prompt)
 
 
 def run(statement, globals=None, locals=None):
@@ -327,3 +355,7 @@ def pm():
 
 # TODO: Test post-mortem / exception handling
 # TODO: Test async + multithreading
+# TODO: Include globals + locals in the `ask` prompt
+# TODO: Print 'thought' for each tool call, or drop it
+# TODO: Add "deep research" mode, which will use saplings
+# TODO: Implement the `fix` command

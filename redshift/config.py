@@ -47,7 +47,7 @@ class Config:
             default=DEFAULT_MAX_ITERS,
             help="Maximum number of iterations for the agent.",
         )
-        parser.add_arguments(
+        parser.add_argument(
             "--hide-external-frames",
             action="store_true",
             default=DEFAULT_HIDE_EXTERNAL_FRAMES,

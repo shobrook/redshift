@@ -3,6 +3,7 @@ import pdb
 import sys
 import json
 import linecache
+import traceback
 from typing import Generator
 
 # Local
@@ -22,11 +23,11 @@ except ImportError:
 
 class RedshiftPdb(pdb.Pdb):
     def __init__(self, *args, **kwargs):
+        # Extract config before passing kwargs to parent
+        config = kwargs.pop("config", None)
         super().__init__(*args, **kwargs)
         self._prompt = "Redshift"
-        self.redshift_config = (
-            Config.from_env() if kwargs.get("config") is None else kwargs["config"]
-        )
+        self.redshift_config = Config.from_env() if config is None else config
         self._agent = Agent(self, self.redshift_config)
         self._last_command = None  # Used to detect follow-ups
         # TODO: Capture command history; use as context for agent
@@ -194,6 +195,12 @@ class RedshiftPdb(pdb.Pdb):
         snapshot = self.format_lines(lines[first - 1 : last], first, breaklist, frame)
         return snapshot
 
+    def format_exception(self) -> str:
+        exception_type, exception_value, _ = sys.exc_info()
+        stack_trace = traceback.extract_stack(self.curframe)
+        # TODO: Enrich with variable values
+        return stack_trace
+
     def execute_code(self, code: str):
         locals = self.curframe_locals
         globals = self.curframe.f_globals
@@ -306,6 +313,9 @@ class RedshiftPdb(pdb.Pdb):
             return
 
         prompt = arg.strip()
+        exception = self.format_exception()
+        print(exception)
+        # TODO: Get the stack trace and plug it in
         self._agent.fix(prompt)
 
 

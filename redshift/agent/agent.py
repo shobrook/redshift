@@ -372,3 +372,6 @@ class Agent:
         self.printer.run_output(code)
         if input("Execute code? (Y/n)").strip().lower() in ["y", "yes", ""]:
             self.pdb.execute_code(code)
+
+    def fix(self, prompt: str) -> str:
+        pass

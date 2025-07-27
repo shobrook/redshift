@@ -28,6 +28,7 @@ To let the script run up to a given line X in the debugged file, use
 
 
 def main():
+    import pdb
     import getopt
 
     opts, args = getopt.getopt(sys.argv[1:], "mhc:", ["help", "command="])
@@ -51,12 +52,12 @@ def main():
     sys.argv[:] = args  # Hide "redshift" and redshift options from argument list
 
     config = Config.from_args()
-    pdb = RedshiftPdb(config=config)
-    pdb.rcLines.extend(commands)
+    pdb_ = RedshiftPdb(config=config)
+    pdb_.rcLines.extend(commands)
     while True:
         try:
-            pdb._run(target)
-            if pdb._user_requested_quit:
+            pdb_._run(target)
+            if pdb_._user_requested_quit:
                 break
             print("The program finished and will be restarted")
         except pdb.Restart:
@@ -74,7 +75,7 @@ def main():
             print("Uncaught exception. Entering post mortem debugging")
             print("Running 'cont' or 'step' will restart the program")
             t = e.__traceback__
-            pdb.interaction(None, t)
+            pdb_.interaction(None, t)
             print("Post mortem debugger finished. The " + target + " will be restarted")
 
 
